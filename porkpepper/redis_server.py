@@ -13,12 +13,6 @@ class RedisServer(RedisServerBase):
     async def set(self, key, value) -> Result:
         return Result(NotImplementedError())
 
-    def hmget(self, key, *fields):
-        return Result(NotImplementedError())
-
-    def hmset(self, key, **fields):
-        return Result(NotImplementedError())
-
     async def key_type(self, key):
         return Result(NotImplementedError())
 
@@ -26,9 +20,6 @@ class RedisServer(RedisServerBase):
         return Result(NotImplementedError())
 
     async def info(self):
-        return Result(NotImplementedError())
-
-    def subscribe(self, channle):
         return Result(NotImplementedError())
 
     async def auth(self, password) -> Result[bool]:

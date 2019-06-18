@@ -10,12 +10,18 @@ class RedisServerBase(RedisProtocol):
     WORKER_QUEUE = asyncio.Queue()
     ENABLE_AUTH = False
 
-    def __init__(self):
-        self._http_app = None
+    def __init__(self, app=None):
+        self._http_app = app
+        self.host = None
+        self.port = None
 
     @property
     def app(self):
         return self._http_app
+
+    @property
+    def password(self):
+        return None
 
     async def worker(self):
         while True:
@@ -95,6 +101,8 @@ class RedisServerBase(RedisProtocol):
                 pass
 
     async def serve(self, host='127.0.0.1', port=6379):
+        self.host = host
+        self.port = port
         server = await asyncio.start_server(self.handle_stream, host, port)
         async with server:
             await asyncio.gather(server.serve_forever(), self.worker())

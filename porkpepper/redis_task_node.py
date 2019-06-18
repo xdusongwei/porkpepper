@@ -101,7 +101,7 @@ class RedisTaskNode:
             fa = (mixin.ttl, dict(key=key))
             node = RedisTaskNode(command, fa, writer_queue)
             return Result(node)
-        elif command == b'SCAN':
+        elif command == b'SCAN' or command == b'KEYS':
             if len(commands) < 2 or len(commands) % 2:
                 return Result(RedisProtocolFormatError())
             pattern = None
@@ -215,14 +215,15 @@ class RedisTaskNode:
             if binary_result.is_error:
                 return Result(binary_result.error)
             writer.write(binary_result.unwrap())
-        elif command == b'SCAN':
+        elif command == b'SCAN' or command == b'KEYS':
             scan_result = self.result
             if scan_result.is_error:
                 return Result(scan_result.error)
             keys = scan_result.unwrap()
             count = len(keys)
-            writer.write(mixin.set_count(2).unwrap())
-            writer.write(mixin.set_binary(0).unwrap())
+            if command == b'SCAN':
+                writer.write(mixin.set_count(2).unwrap())
+                writer.write(mixin.set_binary(0).unwrap())
             writer.write(mixin.set_count(count).unwrap())
             for key in keys:
                 writer.write(mixin.set_binary(key).unwrap())

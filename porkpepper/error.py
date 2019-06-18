@@ -18,7 +18,7 @@ class ReducerTypeNotFound(Exception):
     pass
 
 
-class StoreNotFound(Exception):
+class KeyNotFound(Exception):
     pass
 
 
@@ -44,7 +44,7 @@ __all__ = [
     "ExceptionWithReplyError",
     "NoPasswordError",
     "ReducerTypeNotFound",
-    "StoreNotFound",
+    "KeyNotFound",
     "NodeNotFound",
     "ReducerNotFound",
     "DatabaseNotFound",

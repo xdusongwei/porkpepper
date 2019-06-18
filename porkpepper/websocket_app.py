@@ -13,6 +13,10 @@ class WebsocketApp(web.Application):
     def all_sessions(self):
         return list(self._session_dict.values())
 
+    @property
+    def sessions_count(self) -> int:
+        return len(self._session_dict)
+
     def __getitem__(self, item) -> WebsocketSession:
         return self._session_dict.__getitem__(item)
 

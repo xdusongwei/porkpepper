@@ -10,7 +10,7 @@ from .utils import create_base58_key
 
 class WebsocketSession:
     def __init__(self):
-        self.session_id = create_base58_key(''.join(random.choices(string.ascii_letters, k=12)), length=12, prefix="SS")
+        self.session_id = create_base58_key(''.join(random.choices(string.ascii_letters, k=12)), length=22, prefix="SS")
         self.create_timestamp = int(time.time() * 1000)
         self.current_user = None
         self.socket: WebSocketResponse = None

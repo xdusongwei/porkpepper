@@ -6,6 +6,7 @@ from porkpepper import *
 
 class HelloSession(WebsocketSession):
     async def request(self, message):
+        assert len(self.session_id) == 24
         if message["type"] == "hello":
             await self.send(dict(type="world"))
         else:
@@ -24,7 +25,7 @@ class PrepareAndFinishSession(WebsocketSession):
 
 @pytest.mark.asyncio
 async def test_http():
-    node = PorkPepperNode(RedisServer(), HelloSession)
+    node = PorkPepperNode(HelloSession)
     server = asyncio.ensure_future(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
@@ -35,7 +36,7 @@ async def test_http():
             await ws.close()
     server.cancel()
     await asyncio.sleep(0.1)
-    node = PorkPepperNode(RedisServer(), PrepareAndFinishSession)
+    node = PorkPepperNode(PrepareAndFinishSession)
     server = asyncio.ensure_future(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
