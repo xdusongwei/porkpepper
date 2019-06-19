@@ -6,6 +6,7 @@ import string
 from aiohttp.web import WebSocketResponse
 from .result import Result
 from .utils import create_base58_key
+from .fifo_lock import FifoLock
 
 
 class WebsocketSession:
@@ -14,6 +15,7 @@ class WebsocketSession:
         self.create_timestamp = int(time.time() * 1000)
         self.current_user = None
         self.socket: WebSocketResponse = None
+        self.lock = FifoLock()
 
     async def prepare(self):
         pass

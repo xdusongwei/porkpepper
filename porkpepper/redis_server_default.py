@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 from .redis_server import RedisServer
 from .result import Result
 from .error import *
@@ -25,11 +26,15 @@ class DefaultRedisServer(RedisServer):
     async def getset(self, key, value) -> Result:
         return Result(NotImplementedError())
 
+    @classmethod
+    async def send_task(cls, session, message):
+        await session.send(message)
+
     async def set(self, key, value) -> Result:
         app = self.app
         if app is not None and key in app:
             session = app[key]
-            await session.send(json.loads(value))
+            asyncio.ensure_future(self.send_task(session, json.loads(value)))
             return Result(True)
         else:
             return Result(KeyNotFound())

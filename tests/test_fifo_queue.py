@@ -32,5 +32,8 @@ async def three(lock):
 @pytest.mark.asyncio
 async def test_lock():
     lock = FifoLock()
-    await asyncio.gather(one(lock), two(lock), three(lock))
+    t_one = asyncio.ensure_future(one(lock))
+    t_two = asyncio.ensure_future(two(lock))
+    t_three = asyncio.ensure_future(three(lock))
+    await asyncio.wait([t_one, t_two, t_three], timeout=1.0)
     assert LOCK_ONE.is_set() and LOCK_TWO.is_set() and LOCK_THREE.is_set()

@@ -3,8 +3,8 @@ from queue import Queue
 
 
 class FifoLock:
-    def __init__(self):
-        self._lock_queue = Queue()
+    def __init__(self, maxsize: int = 0):
+        self._lock_queue = Queue(maxsize=maxsize)
 
     async def acquire(self):
         lock = asyncio.Lock()

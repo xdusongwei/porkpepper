@@ -100,10 +100,10 @@ class RedisServerBase(RedisProtocol):
             except Exception as e:
                 pass
 
-    async def serve(self, host='127.0.0.1', port=6379):
+    async def serve(self, host='127.0.0.1', port=6379, **kwargs):
         self.host = host
         self.port = port
-        server = await asyncio.start_server(self.handle_stream, host, port)
+        server = await asyncio.start_server(self.handle_stream, host, port, **kwargs)
         async with server:
             await asyncio.gather(server.serve_forever(), self.worker())
 
