@@ -3,6 +3,7 @@ import asyncio
 from .result import *
 from .redis_protocol import RedisProtocol
 from .redis_task_node import RedisTaskNode
+from .redis_session import RedisSession
 
 
 class RedisServerBase(RedisProtocol):
@@ -30,9 +31,13 @@ class RedisServerBase(RedisProtocol):
             need_auth_event = asyncio.Event()
             if need_auth:
                 need_auth_event.set()
+            session = RedisSession()
+            session.reader = reader
+            session.write = writer
+            session.need_auth_event = need_auth_event
             idle_timeout = self.IDLE_TIMEOUT
             while True:
-                node_result = await RedisTaskNode.create(reader, need_auth_event, self)
+                node_result = await RedisTaskNode.create(session, self)
                 if node_result.is_error:
                     raise node_result.error
                 if node_result.is_some:
@@ -44,7 +49,7 @@ class RedisServerBase(RedisProtocol):
                         else:
                             result = await func()
                         node.result = result
-                    write_result = await asyncio.wait_for(node.write_result(writer, need_auth_event, self),
+                    write_result = await asyncio.wait_for(node.write_result(session, self),
                                                           timeout=idle_timeout)
         except asyncio.TimeoutError as e:
             return Result(e)
@@ -64,46 +69,47 @@ class RedisServerBase(RedisProtocol):
         async with server:
             await server.serve_forever()
 
-    async def get(self, key) -> Result[bytes]:
+    async def get(self, session, key) -> Result[bytes]:
         return Result(NotImplementedError())
 
-    async def getset(self, key, value) -> Result:
+    async def getset(self, session, key, value) -> Result:
         return Result(NotImplementedError())
 
-    async def set(self, key, value) -> Result:
+    async def set(self, session, key, value) -> Result:
         return Result(NotImplementedError())
 
-    async def key_type(self, key):
+    async def key_type(self, session, key):
         return Result(NotImplementedError())
 
-    async def ping(self):
+    async def ping(self, session):
         return Result(NotImplementedError())
 
-    async def info(self):
+    async def info(self, session):
         return Result(NotImplementedError())
 
-    async def auth(self, password) -> Result[bool]:
+    async def auth(self, session, password) -> Result[bool]:
         """
         如果是连接状态问题或者非密码对错的情况下，这里应返回 Result[Exception]
         判断密码正确时，应返回 Result[bool]
+        :param session:
         :param password:
         :return:
         """
         return Result(NotImplementedError())
 
-    async def ttl(self, key):
+    async def ttl(self, session, key):
         return Result(NotImplementedError())
 
-    async def scan(self, pattern):
+    async def scan(self, session, pattern):
         return Result(NotImplementedError())
 
-    async def dbsize(self):
+    async def dbsize(self, session):
         return Result(NotImplementedError())
 
-    async def select(self, db):
+    async def select(self, session, db):
         return Result(NotImplementedError())
 
-    async def config(self, get_set, field, value=None):
+    async def config(self, session, get_set, field, value=None):
         return Result(NotImplementedError())
 
 

@@ -2,6 +2,7 @@ from typing import *
 import asyncio
 from .error import *
 from .result import Result
+from .redis_session import RedisSession
 
 
 class RedisTaskNode:
@@ -11,7 +12,9 @@ class RedisTaskNode:
         self.result = None
 
     @classmethod
-    async def create(cls, reader, need_auth_event: asyncio.Event, mixin: 'RedisServerBase') -> Result['RedisTaskNode']:
+    async def create(cls, session: RedisSession, mixin: 'RedisServerBase') -> Result['RedisTaskNode']:
+        reader = session.reader
+        need_auth_event = session.need_auth_event
         idle_timeout = mixin.IDLE_TIMEOUT
         line = await asyncio.wait_for(reader.readline(), timeout=idle_timeout)
         if not line:
@@ -37,7 +40,7 @@ class RedisTaskNode:
                 password = commands[1]
             else:
                 password = b''
-            fa = (mixin.auth, dict(password=password), )
+            fa = (mixin.auth, dict(session=session, password=password), )
             node = RedisTaskNode(command, fa)
             return Result(node)
         if need_auth_event.is_set():
@@ -47,28 +50,28 @@ class RedisTaskNode:
         if command == b'CONFIG':
             if len(commands) != 3:
                 return Result(RedisProtocolFormatError())
-            fa = (mixin.config, dict(get_set=commands[1], field=commands[2]))
+            fa = (mixin.config, dict(session=session, get_set=commands[1], field=commands[2]))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'INFO':
-            fa = (mixin.info, None)
+            fa = (mixin.info, dict(session=session))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SELECT':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             database_id = int(commands[1])
-            fa = (mixin.select, dict(db=database_id))
+            fa = (mixin.select, dict(session=session, db=database_id))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'DBSIZE':
             if len(commands) != 1:
                 return Result(RedisProtocolFormatError())
-            fa = (mixin.dbsize, None)
+            fa = (mixin.dbsize, dict(session=session))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'PING':
-            fa = (mixin.ping, None)
+            fa = (mixin.ping, dict(session=session))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SET':
@@ -76,28 +79,28 @@ class RedisTaskNode:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
             value = commands[2]
-            fa = (mixin.set, dict(key=key, value=value))
+            fa = (mixin.set, dict(session=session, key=key, value=value))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'GET':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
-            fa = (mixin.get, dict(key=key))
+            fa = (mixin.get, dict(session=session, key=key))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'TYPE':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
-            fa = (mixin.key_type, dict(key=key))
+            fa = (mixin.key_type, dict(session=session, key=key))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'TTL':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
-            fa = (mixin.ttl, dict(key=key))
+            fa = (mixin.ttl, dict(session=session, key=key))
             node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SCAN' or command == b'KEYS':
@@ -110,7 +113,7 @@ class RedisTaskNode:
                     pattern = f'^{arg_value.decode("utf8").replace("*", ".+")}$'
                 elif arg_name.upper() == b'COUNT':
                     pass
-            fa = (mixin.scan, dict(pattern=pattern))
+            fa = (mixin.scan, dict(session=session, pattern=pattern))
             node = RedisTaskNode(command, fa)
             return Result(node)
         else:
@@ -118,7 +121,9 @@ class RedisTaskNode:
             node.result = Result(CommandNotFound())
             return Result(node)
 
-    async def write_result(self, writer, need_auth_event: asyncio.Event, mixin: 'RedisServerMixin') -> Result[bool]:
+    async def write_result(self, session: RedisSession, mixin: 'RedisServerMixin') -> Result[bool]:
+        writer = session.write
+        need_auth_event = session.need_auth_event
         command = self.command
         if command == b'AUTH':
             auth_result = self.result
