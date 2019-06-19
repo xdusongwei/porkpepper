@@ -23,23 +23,6 @@ class RedisServerBase(RedisProtocol):
     def password(self):
         return None
 
-    async def worker(self):
-        while True:
-            try:
-                node: RedisTaskNode = await self.WORKER_QUEUE.get()
-                if node.fa:
-                    func, kwargs = node.fa
-                    if kwargs:
-                        result = await func(**kwargs)
-                    else:
-                        result = await func()
-                    node.result = result
-                await node.writer_queue.put(node)
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                pass
-
     async def handle_stream(self, reader, writer):
         try:
             auth = self.ENABLE_AUTH
@@ -47,48 +30,22 @@ class RedisServerBase(RedisProtocol):
             need_auth_event = asyncio.Event()
             if need_auth:
                 need_auth_event.set()
-            writer_queue = asyncio.Queue()
-            await asyncio.wait([
-                self.reader_loop(reader, need_auth_event, writer_queue),
-                self.writer_loop(writer, need_auth_event, writer_queue),
-            ])
-        except asyncio.TimeoutError as e:
-            return Result(e)
-        except Exception as e:
-            return Result(e)
-        finally:
-            try:
-                writer.close()
-            except Exception as e:
-                pass
-
-    async def reader_loop(self, reader, need_auth_event: asyncio.Event, writer_queue: asyncio.Queue):
-        try:
+            idle_timeout = self.IDLE_TIMEOUT
             while True:
-                node_result = await RedisTaskNode.create(reader, writer_queue, need_auth_event, self)
+                node_result = await RedisTaskNode.create(reader, need_auth_event, self)
                 if node_result.is_error:
                     raise node_result.error
                 if node_result.is_some:
-                    await self.WORKER_QUEUE.put(node_result.unwrap())
-        except asyncio.TimeoutError as e:
-            return Result(e)
-        except Exception as e:
-            return Result(e)
-        finally:
-            await writer_queue.put(None)
-
-    async def writer_loop(self, writer, need_auth_event: asyncio.Event, writer_queue: asyncio.Queue):
-        idle_timeout = self.IDLE_TIMEOUT
-        try:
-            while True:
-                node: Optional[RedisTaskNode] = await writer_queue.get()
-                if node is None:
-                    return
-                write_result = await asyncio.wait_for(node.write_result(writer,  need_auth_event, self), timeout=idle_timeout)
-                if write_result.is_error:
-                    raise write_result.error
-                elif not write_result.unwrap():
-                    return
+                    node: RedisTaskNode = node_result.unwrap()
+                    if node.fa:
+                        func, kwargs = node.fa
+                        if kwargs:
+                            result = await func(**kwargs)
+                        else:
+                            result = await func()
+                        node.result = result
+                    write_result = await asyncio.wait_for(node.write_result(writer, need_auth_event, self),
+                                                          timeout=idle_timeout)
         except asyncio.TimeoutError as e:
             return Result(e)
         except Exception as e:
@@ -105,7 +62,7 @@ class RedisServerBase(RedisProtocol):
         self.port = port
         server = await asyncio.start_server(self.handle_stream, host, port, **kwargs)
         async with server:
-            await asyncio.gather(server.serve_forever(), self.worker())
+            await server.serve_forever()
 
     async def get(self, key) -> Result[bytes]:
         return Result(NotImplementedError())
@@ -116,12 +73,6 @@ class RedisServerBase(RedisProtocol):
     async def set(self, key, value) -> Result:
         return Result(NotImplementedError())
 
-    def hmget(self, key, *fields):
-        return Result(NotImplementedError())
-
-    def hmset(self, key, **fields):
-        return Result(NotImplementedError())
-
     async def key_type(self, key):
         return Result(NotImplementedError())
 
@@ -129,9 +80,6 @@ class RedisServerBase(RedisProtocol):
         return Result(NotImplementedError())
 
     async def info(self):
-        return Result(NotImplementedError())
-
-    def subscribe(self, channle):
         return Result(NotImplementedError())
 
     async def auth(self, password) -> Result[bool]:

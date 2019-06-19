@@ -5,14 +5,13 @@ from .result import Result
 
 
 class RedisTaskNode:
-    def __init__(self, command, fa: Optional[Tuple[Callable, Union[None, Dict]]], writer_queue: asyncio.Queue):
+    def __init__(self, command, fa: Optional[Tuple[Callable, Union[None, Dict]]]):
         self.command: bytes = command
         self.fa = fa
-        self.writer_queue = writer_queue
         self.result = None
 
     @classmethod
-    async def create(cls, reader, writer_queue: asyncio.Queue, need_auth_event: asyncio.Event, mixin: 'RedisServerBase') -> Result['RedisTaskNode']:
+    async def create(cls, reader, need_auth_event: asyncio.Event, mixin: 'RedisServerBase') -> Result['RedisTaskNode']:
         idle_timeout = mixin.IDLE_TIMEOUT
         line = await asyncio.wait_for(reader.readline(), timeout=idle_timeout)
         if not line:
@@ -39,38 +38,38 @@ class RedisTaskNode:
             else:
                 password = b''
             fa = (mixin.auth, dict(password=password), )
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         if need_auth_event.is_set():
-            node = RedisTaskNode(b'AUTH', None, writer_queue)
+            node = RedisTaskNode(b'AUTH', None)
             node.result = Result(NoPasswordError("NOAUTH Authentication required."))
             return Result(node)
         if command == b'CONFIG':
             if len(commands) != 3:
                 return Result(RedisProtocolFormatError())
             fa = (mixin.config, dict(get_set=commands[1], field=commands[2]))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'INFO':
             fa = (mixin.info, None)
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SELECT':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             database_id = int(commands[1])
             fa = (mixin.select, dict(db=database_id))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'DBSIZE':
             if len(commands) != 1:
                 return Result(RedisProtocolFormatError())
             fa = (mixin.dbsize, None)
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'PING':
             fa = (mixin.ping, None)
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SET':
             if len(commands) < 3:
@@ -78,28 +77,28 @@ class RedisTaskNode:
             key = commands[1].decode("utf8").strip()
             value = commands[2]
             fa = (mixin.set, dict(key=key, value=value))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'GET':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
             fa = (mixin.get, dict(key=key))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'TYPE':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
             fa = (mixin.key_type, dict(key=key))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'TTL':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
             key = commands[1].decode("utf8").strip()
             fa = (mixin.ttl, dict(key=key))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         elif command == b'SCAN' or command == b'KEYS':
             if len(commands) < 2 or len(commands) % 2:
@@ -112,10 +111,10 @@ class RedisTaskNode:
                 elif arg_name.upper() == b'COUNT':
                     pass
             fa = (mixin.scan, dict(pattern=pattern))
-            node = RedisTaskNode(command, fa, writer_queue)
+            node = RedisTaskNode(command, fa)
             return Result(node)
         else:
-            node = RedisTaskNode(b'NOOP', None, writer_queue)
+            node = RedisTaskNode(b'NOOP', None)
             node.result = Result(CommandNotFound())
             return Result(node)
 
@@ -183,11 +182,13 @@ class RedisTaskNode:
         elif command == b'SET':
             set_result = self.result
             if set_result.is_error:
-                return Result(set_result.error)
-            binary_result = mixin.set_ok()
-            if binary_result.is_error:
-                return Result(binary_result.error)
-            writer.write(binary_result.unwrap())
+                binary_result = mixin.set_err()
+                writer.write(binary_result.unwrap())
+            else:
+                binary_result = mixin.set_ok()
+                if binary_result.is_error:
+                    return Result(binary_result.error)
+                writer.write(binary_result.unwrap())
         elif command == b'GET':
             get_result = self.result
             if get_result.is_error:
