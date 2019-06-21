@@ -24,8 +24,8 @@ class PrepareAndFinishSession(WebsocketSession):
 
 
 @pytest.mark.asyncio
-async def test_http_serve():
-    node = PorkPepperNode(HelloSession)
+async def test_basic_serve():
+    node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
     task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
@@ -36,7 +36,7 @@ async def test_http_serve():
             await ws.close()
     task.cancel()
     await asyncio.sleep(0.1)
-    node = PorkPepperNode(PrepareAndFinishSession)
+    node = PorkPepperNode(SocketBasedRedisServer, PrepareAndFinishSession)
     task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
@@ -47,8 +47,8 @@ async def test_http_serve():
 
 
 @pytest.mark.asyncio
-async def test_http_start():
-    node = PorkPepperNode(HelloSession)
+async def test_basic_start():
+    node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
     await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
@@ -57,7 +57,7 @@ async def test_http_start():
             assert message == {"type": "world"}
             await ws.close()
     await node.stop()
-    node = PorkPepperNode(PrepareAndFinishSession)
+    node = PorkPepperNode(SocketBasedRedisServer, PrepareAndFinishSession)
     await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:

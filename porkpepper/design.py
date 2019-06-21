@@ -1,6 +1,8 @@
 from typing import *
+import fnmatch
 import json
 import inspect
+import asyncio
 from .error import *
 from .result import Result
 from .node import PorkPepperNode
@@ -10,8 +12,171 @@ from .redis_server import RedisServer
 PORKPEPPER_ATTR = "__porkpepper__"
 
 
+class SocketBasedRedisServer(RedisServer):
+    MAX_DB_COUNT = 2
+
+    def _session_db_size(self) -> int:
+        app = self.app
+        if app is not None:
+            return app.sessions_count
+        else:
+            return 0
+
+    def _user_db_size(self) -> int:
+        app = self.app
+        if app is not None:
+            return app.users_count
+        else:
+            return 0
+
+    @classmethod
+    def _session_to_dict(cls, session):
+        return dict(
+                    type="session",
+                    session_id=session.session_id,
+                    create_timestamp=session.create_timestamp,
+                    current_user=session.current_user
+                )
+
+    async def get(self, session, key) -> Result[bytes]:
+        app = self.app
+        if session.current_db == 0:
+            session = app.get_session(key) if app is not None else None
+            if session:
+                status = self._session_to_dict(session)
+                return Result(json.dumps(status))
+        elif session.current_db == 1:
+            sessions = app.get_user(key) if app is not None else None
+            if sessions:
+                status = dict(type="user", sessions=[self._session_to_dict(session) for session in sessions])
+                return Result(json.dumps(status))
+        return Result(None)
+
+    async def getset(self, session, key, value) -> Result:
+        return Result(NotImplementedError())
+
+    @classmethod
+    async def send_task(cls, session, message):
+        await session.send(message)
+
+    async def set(self, session, key, value) -> Result:
+        app = self.app
+        if session.current_db == 0:
+            session = app.get_session(key) if app is not None else None
+            if session:
+                asyncio.ensure_future(asyncio.Task(self.send_task(session, json.loads(value))))
+        return Result(True)
+
+    async def key_type(self, session, key):
+        return Result("string")
+
+    async def ping(self, session):
+        return Result("PONG")
+
+    async def info(self, session):
+        service_list = list()
+        service_list.append(
+            (0,
+             dict(
+                 keys=self._session_db_size(),
+             )
+             ))
+        service_list.append(
+            (1,
+             dict(
+                 keys=self._user_db_size(),
+             )
+             ))
+        info = self.INFO_TEMPLATE.render(port=self.port, porkpepper_mode="websocket", service_list=service_list)
+        return Result(info)
+
+    async def auth(self, session, password) -> Result[bool]:
+        if self.password is None:
+            return Result(NoPasswordError("ERR Client sent AUTH, but no password is set"))
+        auth = self.password or ""
+        return Result(password == auth.encode("utf8"))
+
+    async def ttl(self, session, key):
+        return Result(-1)
+
+    def _scan_sessions(self, pattern=None):
+        app = self.app
+        keys = list()
+        sessions = app.all_sessions() if app is not None else list()
+        for session in sessions:
+            if pattern is not None:
+                if fnmatch.fnmatch(session.session_id, pattern):
+                    keys.append(session.session_id)
+            else:
+                keys.append(session.session_id)
+        return keys
+
+    def _scan_users(self, pattern=None):
+        app = self.app
+        keys = list()
+        users = app.all_users() if app is not None else list()
+        for user in users:
+            if pattern is not None:
+                if fnmatch.fnmatch(user, pattern):
+                    keys.append(user)
+            else:
+                keys.append(user)
+        return keys
+
+    async def scan(self, session, pattern):
+        if session.current_db == 0:
+            keys = self._scan_sessions(pattern)
+            return Result(keys)
+        if session.current_db == 1:
+            keys = self._scan_users(pattern)
+            return Result(list())
+        return Result(list())
+
+    async def dbsize(self, session):
+        if session.current_db == 0:
+            size = self._session_db_size()
+            return Result(size)
+        if session.current_db == 1:
+            size = self._user_db_size()
+            return Result(size)
+        return Result(0)
+
+    async def select(self, session, db):
+        if 0 <= db < self.MAX_DB_COUNT:
+            session.current_db = db
+            return Result(True)
+        else:
+            return Result(DatabaseNotFound())
+
+    async def config(self, session, get_set, field, value=None):
+        if get_set == b'GET' and field == b'databases':
+            return Result([b'databases', f'{self.MAX_DB_COUNT}'.encode("utf8")])
+        return Result(CommandNotFound())
+
+
 class WebsocketNode(PorkPepperNode):
-    pass
+    def __init__(self, session_class, websocket_path, **kwargs):
+        super(WebsocketNode, self).__init__(
+            redis_server=SocketBasedRedisServer,
+            session_class=session_class,
+            websocket_path=websocket_path,
+            **kwargs
+        )
+
+    async def start(self, service_map: Dict[int, Type] = None, redis_host="127.0.0.1", redis_port=6379, **kwargs):
+        return await super(WebsocketNode, self).start(
+            enable_websocket=True,
+            redis_host=redis_host,
+            redis_port=redis_port, **kwargs
+        )
+
+    async def serve(self, service_map: Dict[int, Type] = None, redis_host="127.0.0.1", redis_port=6379, **kwargs):
+        await super(WebsocketNode, self).serve(
+            enable_websocket=True,
+            redis_host=redis_host,
+            redis_port=redis_port,
+            **kwargs
+        )
 
 
 def service(key: str, output: bool = False, description: Optional[str] = None, meta: Optional[Dict] = None):
@@ -147,10 +312,8 @@ class ServiceBasedRedisServer(RedisServer):
 
 class RedisServiceNode(PorkPepperNode):
     def __init__(self, **kwargs):
-        super(RedisServiceNode, self).__init__(**kwargs)
+        super(RedisServiceNode, self).__init__(redis_server=ServiceBasedRedisServer, **kwargs)
         self._services = dict()
-        self._redis_server_class = ServiceBasedRedisServer
-        self._redis_server = self._redis_server_class(app=self._http_app)
 
     async def update_service(self, db: int, new_service: Type):
         members = inspect.getmembers(new_service, inspect.ismethod)
@@ -203,4 +366,4 @@ class RedisServiceNode(PorkPepperNode):
         )
 
 
-__all__ = ["WebsocketNode", "RedisServiceNode", "service", ]
+__all__ = ["WebsocketNode", "RedisServiceNode", "service", "SocketBasedRedisServer", ]

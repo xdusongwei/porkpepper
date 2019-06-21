@@ -2,18 +2,19 @@ from typing import *
 import asyncio
 from aiohttp import web
 from .websocket_app import WebsocketApp
-from .redis_server_default import DefaultRedisServer
 
 
 class PorkPepperNode:
-    def __init__(self, session_class=None, redis_server=None, websocket_path="/porkpepper", **kwargs):
+    def __init__(self, redis_server, session_class=None, websocket_path="/porkpepper", **kwargs):
+        if redis_server is None:
+            raise ValueError
         self._session_class = session_class
 
         self._app_options = kwargs or dict()
         self._http_app: WebsocketApp = WebsocketApp(session_class=session_class, **self._app_options)
         self._http_app.add_routes([web.route('GET', path, self._http_app.handler) for path in [websocket_path, ]])
 
-        self._redis_server_class = redis_server if redis_server else DefaultRedisServer
+        self._redis_server_class = redis_server
         self._redis_server = self._redis_server_class(app=self._http_app)
 
         self._redis_server_task = None

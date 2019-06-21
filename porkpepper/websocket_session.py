@@ -13,9 +13,25 @@ class WebsocketSession:
     def __init__(self):
         self.session_id = create_base58_key(''.join(random.choices(string.ascii_letters, k=12)), length=22, prefix="SS")
         self.create_timestamp = int(time.time() * 1000)
-        self.current_user = None
+        self._current_user = None
         self.socket: WebSocketResponse = None
         self.lock = FifoLock()
+        self.app = None
+
+    @property
+    def current_user(self):
+        return self._current_user
+
+    @current_user.setter
+    def current_user(self, v: Optional[str]):
+        current_user = self._current_user
+        self._current_user = v
+        app = self.app
+        if app is not None:
+            if current_user is not None:
+                app.remove_user(current_user, self)
+            if v is not None:
+                app.add_user(v, self)
 
     async def prepare(self):
         pass
