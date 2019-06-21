@@ -24,9 +24,9 @@ class PrepareAndFinishSession(WebsocketSession):
 
 
 @pytest.mark.asyncio
-async def test_http():
+async def test_http_serve():
     node = PorkPepperNode(HelloSession)
-    server = asyncio.ensure_future(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
+    task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
@@ -34,14 +34,33 @@ async def test_http():
             message = await ws.receive_json(timeout=1)
             assert message == {"type": "world"}
             await ws.close()
-    server.cancel()
+    task.cancel()
     await asyncio.sleep(0.1)
     node = PorkPepperNode(PrepareAndFinishSession)
-    server = asyncio.ensure_future(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
+    task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
     await asyncio.sleep(0.01)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
             await ws.close()
     assert not PrepareAndFinishSession.CASE
-    server.cancel()
+    task.cancel()
 
+
+@pytest.mark.asyncio
+async def test_http_start():
+    node = PorkPepperNode(HelloSession)
+    await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
+            await ws.send_json(dict(type="hello"))
+            message = await ws.receive_json(timeout=1)
+            assert message == {"type": "world"}
+            await ws.close()
+    await node.stop()
+    node = PorkPepperNode(PrepareAndFinishSession)
+    await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
+            await ws.close()
+    assert not PrepareAndFinishSession.CASE
+    await node.stop()

@@ -33,3 +33,44 @@ async def client():
             await ws.close()
 
 ```
+
+示例: 纯 Redis 服务
+
+
+```Python
+import asyncio
+from porkpepper.design import service, RedisServiceNode
+
+
+class MyService:
+    @classmethod
+    @service(key="add", output=True, meta=dict(version="0.1.0"))
+    async def my_add(cls, message):
+        a = message.get("a", 0)
+        b = message.get("b", 0)
+        result = a + b
+        return dict(result=result)
+
+
+class MyPureRedisServer(RedisServiceNode):
+    async def on_start(self):
+        await self.update_service(3, MyService)
+
+
+async def work():
+    node = MyPureRedisServer()
+    await node.serve()
+
+
+if __name__ == '__main__':
+    asyncio.get_event_loop().run_until_complete(work())
+
+```
+
+```
+$ redis-cli -n 3
+127.0.0.1:6379[3]> GETSET add "{\"a\": 1, \"b\": 2}"
+"{\"result\": 3}"
+127.0.0.1:6379[3]> GET add
+"{\"key\": \"add\", \"output\": true, \"meta\": {\"version\": \"0.1.0\"}}"
+```

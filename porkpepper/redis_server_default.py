@@ -7,7 +7,9 @@ from .error import *
 
 
 class DefaultRedisServer(RedisServer):
-    def _db_size(self) -> int:
+    MAX_DB_COUNT = 2
+
+    def _session_db_size(self) -> int:
         app = self.app
         if app is not None:
             return app.sessions_count
@@ -16,12 +18,17 @@ class DefaultRedisServer(RedisServer):
 
     async def get(self, session, key) -> Result[bytes]:
         app = self.app
-        if app is not None and key in app:
-            session = app[key]
-            status = dict(session_id=key, create_timestamp=session.create_timestamp, current_user=session.current_user)
+        session = app.get_session(key) if app is not None else None
+        if session:
+            status = dict(
+                type="session",
+                session_id=key,
+                create_timestamp=session.create_timestamp,
+                current_user=session.current_user
+            )
             return Result(json.dumps(status))
         else:
-            return Result(KeyNotFound())
+            return Result(None)
 
     async def getset(self, session, key, value) -> Result:
         return Result(NotImplementedError())
@@ -32,8 +39,8 @@ class DefaultRedisServer(RedisServer):
 
     async def set(self, session, key, value) -> Result:
         app = self.app
-        if app is not None and key in app:
-            session = app[key]
+        session = app.get_session(key) if app is not None else None
+        if session:
             asyncio.ensure_future(self.send_task(session, json.loads(value)))
             return Result(True)
         else:
@@ -46,16 +53,20 @@ class DefaultRedisServer(RedisServer):
         return Result("PONG")
 
     async def info(self, session):
-        info = f"""
-        # Server
-        redis_version:3.0.0
-        porkpepper_version:0.1.0
-        tcp_port:{self.port}
-        # Keyspace
-        db0:keys=0,expires=0,avg_ttl=0
-        db1:keys={self._db_size()},expires=0,avg_ttl=0
-        db2:keys=0,expires=0,avg_ttl=0
-        """
+        service_list = list()
+        service_list.append(
+            (0,
+             dict(
+                 keys=self._session_db_size(),
+             )
+             ))
+        service_list.append(
+            (1,
+             dict(
+                 keys=0,
+             )
+             ))
+        info = self.INFO_TEMPLATE.render(port=self.port, porkpepper_mode="websocket", service_list=service_list)
         return Result(info)
 
     async def auth(self, session, password) -> Result[bool]:
@@ -81,19 +92,22 @@ class DefaultRedisServer(RedisServer):
 
     async def scan(self, session, pattern):
         if session.current_db == 0:
-            return Result(list())
-        if session.current_db == 1:
             keys = self._scan_sessions(pattern)
             return Result(keys)
-        if session.current_db == 2:
+        if session.current_db == 1:
             return Result(list())
         return Result(list())
 
     async def dbsize(self, session):
-        return Result(self._db_size())
+        if session.current_db == 0:
+            keys = self._session_db_size()
+            return Result(keys)
+        if session.current_db == 1:
+            return Result(0)
+        return Result(0)
 
     async def select(self, session, db):
-        if 0 <= db < 3:
+        if 0 <= db < self.MAX_DB_COUNT:
             session.current_db = db
             return Result(True)
         else:
@@ -101,7 +115,7 @@ class DefaultRedisServer(RedisServer):
 
     async def config(self, session, get_set, field, value=None):
         if get_set == b'GET' and field == b'databases':
-            return Result([b'databases', b'3'])
+            return Result([b'databases', f'{self.MAX_DB_COUNT}'.encode("utf8")])
         return Result(CommandNotFound())
 
 

@@ -17,6 +17,9 @@ class WebsocketApp(web.Application):
     def sessions_count(self) -> int:
         return len(self._session_dict)
 
+    def get_session(self, session_id):
+        return self._session_dict.get(session_id, None)
+
     def __getitem__(self, item) -> WebsocketSession:
         return self._session_dict.__getitem__(item)
 

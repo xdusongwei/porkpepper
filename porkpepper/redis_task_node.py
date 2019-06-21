@@ -82,6 +82,14 @@ class RedisTaskNode:
             fa = (mixin.set, dict(session=session, key=key, value=value))
             node = RedisTaskNode(command, fa)
             return Result(node)
+        elif command == b'GETSET':
+            if len(commands) < 3:
+                return Result(RedisProtocolFormatError())
+            key = commands[1].decode("utf8").strip()
+            value = commands[2]
+            fa = (mixin.getset, dict(session=session, key=key, value=value))
+            node = RedisTaskNode(command, fa)
+            return Result(node)
         elif command == b'GET':
             if len(commands) != 2:
                 return Result(RedisProtocolFormatError())
@@ -121,7 +129,7 @@ class RedisTaskNode:
             node.result = Result(CommandNotFound())
             return Result(node)
 
-    async def write_result(self, session: RedisSession, mixin: 'RedisServerMixin') -> Result[bool]:
+    async def write_result(self, session: RedisSession, mixin: 'RedisServerBase') -> Result[bool]:
         writer = session.write
         need_auth_event = session.need_auth_event
         command = self.command
@@ -147,13 +155,14 @@ class RedisTaskNode:
         elif command == b'CONFIG':
             config_result = self.result
             if config_result.is_error:
-                return Result(config_result.error)
-            binary_lines = config_result.unwrap()
-            item_size = len(binary_lines)
-            writer.write(mixin.set_count(item_size).unwrap())
-            for binary in binary_lines:
-                binary_result = mixin.set_binary(binary)
-                writer.write(binary_result.unwrap())
+                writer.write(mixin.set_err().unwrap())
+            else:
+                binary_lines = config_result.unwrap()
+                item_size = len(binary_lines)
+                writer.write(mixin.set_count(item_size).unwrap())
+                for binary in binary_lines:
+                    binary_result = mixin.set_binary(binary)
+                    writer.write(binary_result.unwrap())
         elif command == b'INFO':
             info_result = self.result
             if info_result.is_error:
@@ -171,11 +180,12 @@ class RedisTaskNode:
         elif command == b'DBSIZE':
             dbsize_result = self.result
             if dbsize_result.is_error:
-                return Result(dbsize_result.error)
-            binary_result = mixin.set_integer(dbsize_result.unwrap())
-            if binary_result.is_error:
-                return Result(binary_result.error)
-            writer.write(binary_result.unwrap())
+                writer.write(mixin.set_err().unwrap())
+            else:
+                binary_result = mixin.set_integer(dbsize_result.unwrap())
+                if binary_result.is_error:
+                    return Result(binary_result.error)
+                writer.write(binary_result.unwrap())
         elif command == b'PING':
             ping_result = self.result
             if ping_result.is_error:
@@ -194,25 +204,39 @@ class RedisTaskNode:
                 if binary_result.is_error:
                     return Result(binary_result.error)
                 writer.write(binary_result.unwrap())
+        elif command == b'GETSET':
+            getset_result = self.result
+            if getset_result.is_error:
+                writer.write(mixin.set_err().unwrap())
+            else:
+                if getset_result.unwrap() is None:
+                    binary_result = mixin.set_nil()
+                else:
+                    binary_result = mixin.set_binary(getset_result.unwrap())
+                if binary_result.is_error:
+                    return Result(binary_result.error)
+                writer.write(binary_result.unwrap())
         elif command == b'GET':
             get_result = self.result
             if get_result.is_error:
-                return Result(get_result.error)
-            if get_result.unwrap() is None:
-                binary_result = mixin.set_nil()
+                writer.write(mixin.set_err().unwrap())
             else:
-                binary_result = mixin.set_binary(get_result.unwrap())
-            if binary_result.is_error:
-                return Result(binary_result.error)
-            writer.write(binary_result.unwrap())
+                if get_result.unwrap() is None:
+                    binary_result = mixin.set_nil()
+                else:
+                    binary_result = mixin.set_binary(get_result.unwrap())
+                if binary_result.is_error:
+                    return Result(binary_result.error)
+                writer.write(binary_result.unwrap())
         elif command == b'TYPE':
             key_type_result = self.result
             if key_type_result.is_error:
-                return Result(key_type_result.error)
-            binary_result = mixin.set_ok(key_type_result.unwrap())
-            if binary_result.is_error:
-                return Result(binary_result.error)
-            writer.write(binary_result.unwrap())
+                writer.write(mixin.set_err().unwrap())
+            else:
+                binary_result = mixin.set_ok(key_type_result.unwrap())
+                if binary_result.is_error:
+                    return Result(binary_result.error)
+                writer.write(binary_result.unwrap())
         elif command == b'TTL':
             ttl_result = self.result
             if ttl_result.is_error:
@@ -224,16 +248,17 @@ class RedisTaskNode:
         elif command == b'SCAN' or command == b'KEYS':
             scan_result = self.result
             if scan_result.is_error:
-                return Result(scan_result.error)
-            keys = scan_result.unwrap()
-            count = len(keys)
-            if command == b'SCAN':
-                writer.write(mixin.set_count(2).unwrap())
-                writer.write(mixin.set_binary(0).unwrap())
-            writer.write(mixin.set_count(count).unwrap())
-            for key in keys:
-                writer.write(mixin.set_binary(key).unwrap())
-                await writer.drain()
+                writer.write(mixin.set_err().unwrap())
+            else:
+                keys = scan_result.unwrap()
+                count = len(keys)
+                if command == b'SCAN':
+                    writer.write(mixin.set_count(2).unwrap())
+                    writer.write(mixin.set_binary(0).unwrap())
+                writer.write(mixin.set_count(count).unwrap())
+                for key in keys:
+                    writer.write(mixin.set_binary(key).unwrap())
+                    await writer.drain()
         else:
             binary_result = mixin.set_err("COMMAND NOT EXISTS")
             writer.write(binary_result.unwrap())

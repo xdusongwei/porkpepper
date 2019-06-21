@@ -13,6 +13,7 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     install_requires=[
+        'Jinja2',
         'base58',
         'aiohttp',
         'typing',
