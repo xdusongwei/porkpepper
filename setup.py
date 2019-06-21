@@ -19,7 +19,11 @@ setup(
         'typing',
         'pytest',
         'aioredis',
+        'pytest',
         'pytest-asyncio',
+        'python-coveralls',
+        'pytest-cov',
+        'codecov',
     ],
     tests_require=[
         'pytest',
