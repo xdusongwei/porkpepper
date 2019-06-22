@@ -57,7 +57,10 @@ class SocketBasedRedisServer(RedisServer):
 
     @classmethod
     async def send_task(cls, session, message):
-        await session.send(message)
+        try:
+            await session.send(message)
+        except Exception as e:
+            pass
 
     async def set(self, session, key, value) -> Result:
         app = self.app

@@ -70,7 +70,7 @@ cluster_enabled:0
         self.connections = set()
         self.start_time = int(time.time())
         random_key = ''.join(random.choices(string.ascii_letters, k=128))
-        run_id = create_base58_key(random_key, length=38, prefix="PP", timestamp=True)
+        run_id = create_base58_key(random_key, length=20, prefix="PP", timestamp=True)
         self.run_id = run_id
         self.total_connections_received = 0
         self.total_commands_processed = 0
