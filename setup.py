@@ -13,12 +13,17 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     install_requires=[
+        'Jinja2',
         'base58',
         'aiohttp',
         'typing',
         'pytest',
         'aioredis',
+        'pytest',
         'pytest-asyncio',
+        'python-coveralls',
+        'pytest-cov',
+        'codecov',
     ],
     tests_require=[
         'pytest',

@@ -10,6 +10,7 @@ class RedisServerBase(RedisProtocol):
     IDLE_TIMEOUT = 60
     WORKER_QUEUE = asyncio.Queue()
     ENABLE_AUTH = False
+    MAX_DB_COUNT = 1
 
     def __init__(self, app=None):
         self._http_app = app
