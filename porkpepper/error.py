@@ -14,19 +14,15 @@ class NoPasswordError(ExceptionWithReplyError):
     pass
 
 
-class ReducerTypeNotFound(Exception):
+class WrongCommand(Exception):
     pass
 
 
-class StoreNotFound(Exception):
+class KeyNotFound(Exception):
     pass
 
 
 class NodeNotFound(Exception):
-    pass
-
-
-class ReducerNotFound(Exception):
     pass
 
 
@@ -43,10 +39,9 @@ __all__ = [
     "RedisProtocolFormatError",
     "ExceptionWithReplyError",
     "NoPasswordError",
-    "ReducerTypeNotFound",
-    "StoreNotFound",
+    "WrongCommand",
+    "KeyNotFound",
     "NodeNotFound",
-    "ReducerNotFound",
     "DatabaseNotFound",
     "CommandNotFound",
 ]

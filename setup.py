@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='porkpepper',
-    version='0.1.0',
+    version='0.2.0',
     author='宋伟(songwei)',
     author_email='songwei@songwei.io',
     long_description='',
@@ -13,12 +13,18 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     install_requires=[
+        'Jinja2',
         'base58',
+        'aiotools',
         'aiohttp',
         'typing',
         'pytest',
         'aioredis',
+        'pytest',
         'pytest-asyncio',
+        'python-coveralls',
+        'pytest-cov',
+        'codecov',
     ],
     tests_require=[
         'pytest',

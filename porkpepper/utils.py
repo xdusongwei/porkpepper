@@ -29,13 +29,13 @@ def create_base58_key(
 ) -> str:
     hash_cipher = HashCipher(salt=salt, cipher=cipher)
     hash_key = hash_cipher.digest(str(data))
-    slice_key = base58.b58encode(hash_key)[:length]
+    slice_key = base58.b58encode(hash_key)
     if type(slice_key) is bytes:
         slice_key = slice_key.decode("utf8")
     time_part = ''
     if timestamp:
         time_part = base58.b58encode(pack('>Q', int(time.time() * 1000))).zfill(10).decode("utf8")
-    key = "{}{}{}".format(prefix, time_part, slice_key)
+    key = f'{prefix}{"{}{}".format(time_part, slice_key)[:length]}'
     return key
 
 
