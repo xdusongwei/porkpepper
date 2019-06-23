@@ -35,6 +35,7 @@ class PorkPepperNode:
     async def start(self, enable_websocket=False, redis_host="127.0.0.1", redis_port=6379, **kwargs):
         app = self._http_app
         redis_server = self._redis_server
+        redis_server.init_property()
         runner = web.AppRunner(app)
         self._runner = runner
         await runner.setup()
@@ -60,6 +61,7 @@ class PorkPepperNode:
     async def serve(self, enable_websocket=False, redis_host="127.0.0.1", redis_port=6379, **kwargs):
         app = self._http_app
         redis_server = self._redis_server
+        redis_server.init_property()
         runner = web.AppRunner(app)
         await runner.setup()
         try:

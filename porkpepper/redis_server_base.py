@@ -1,6 +1,13 @@
 from typing import *
+import os
+import time
+import math
+import random
+import string
 import asyncio
+from jinja2 import Template
 from .result import *
+from .utils import *
 from .redis_protocol import RedisProtocol
 from .redis_task_node import RedisTaskNode
 from .redis_session import RedisSession
@@ -12,10 +19,64 @@ class RedisServerBase(RedisProtocol):
     ENABLE_AUTH = False
     MAX_DB_COUNT = 1
 
+    INFO_TEMPLATE = Template(
+        """# Server
+redis_version:3.0.0
+porkpepper_version:0.1.0
+porkpepper_mode:{{ porkpepper_mode }}
+process_id:{{ process_id }}
+run_id:{{ run_id }}
+tcp_port:{{ tcp_port }}
+uptime_in_seconds:{{ uptime_in_seconds }}
+uptime_in_days:{{ uptime_in_days }}
+
+# Clients
+connected_clients:{{ connected_clients }}
+
+# Stats
+total_connections_received:{{ total_connections_received }}
+total_commands_processed:{{ total_commands_processed }}
+instantaneous_ops_per_sec:{{ instantaneous_ops_per_sec }}
+total_net_input_bytes:{{ total_net_input_bytes }}
+total_net_output_bytes:{{ total_net_output_bytes }}
+
+# Replication
+role:master
+connected_slaves:0
+master_repl_offset:0
+
+# Cluster
+cluster_enabled:0
+
+# Keyspace
+{% for db, info in keyspace %}db{{ db }}:keys={{ info["keys"] }},expires=0,avg_ttl=0\r\n{% endfor %}
+""", newline_sequence="\r\n")
+
     def __init__(self, app=None):
         self._http_app = app
         self.host = None
         self.port = None
+        self.connections = set()
+        self.start_time = 0
+        self.run_id = ""
+        self.total_connections_received = 0
+        self.total_commands_processed = 0
+        self.instantaneous_ops_per_sec = 0
+        self.total_net_input_bytes = 0
+        self.total_net_output_bytes = 0
+        self.init_property()
+
+    def init_property(self):
+        self.connections = set()
+        self.start_time = int(time.time())
+        random_key = ''.join(random.choices(string.ascii_letters, k=128))
+        run_id = create_base58_key(random_key, length=20, prefix="PP", timestamp=True)
+        self.run_id = run_id
+        self.total_connections_received = 0
+        self.total_commands_processed = 0
+        self.instantaneous_ops_per_sec = 0
+        self.total_net_input_bytes = 0
+        self.total_net_output_bytes = 0
 
     @property
     def app(self):
@@ -26,7 +87,10 @@ class RedisServerBase(RedisProtocol):
         return None
 
     async def handle_stream(self, reader, writer):
+        session = None
         try:
+            self.connections.add((reader, writer, ))
+            self.total_connections_received += 1
             auth = self.ENABLE_AUTH
             need_auth = True if auth else False
             need_auth_event = asyncio.Event()
@@ -36,6 +100,7 @@ class RedisServerBase(RedisProtocol):
             session.reader = reader
             session.write = writer
             session.need_auth_event = need_auth_event
+            session.server = self
             idle_timeout = self.IDLE_TIMEOUT
             while True:
                 node_result = await RedisTaskNode.create(session, self)
@@ -52,6 +117,7 @@ class RedisServerBase(RedisProtocol):
                         node.result = result
                     write_result = await asyncio.wait_for(node.write_result(session, self),
                                                           timeout=idle_timeout)
+                self.total_commands_processed += 1
         except asyncio.TimeoutError as e:
             return Result(e)
         except Exception as e:
@@ -62,6 +128,29 @@ class RedisServerBase(RedisProtocol):
                 await writer.wait_closed()
             except Exception as e:
                 pass
+            self.connections.remove((reader, writer, ))
+            if session:
+                session.reader = None
+                session.write = None
+                session.server = None
+
+    def info_arguments(self):
+        return {
+            "porkpepper_version": "0.1.0",
+            "porkpepper_mode": "",
+            "process_id": os.getpid(),
+            "run_id": self.run_id,
+            "tcp_port": self.port,
+            "uptime_in_seconds": int(time.time()) - self.start_time,
+            "uptime_in_days": math.ceil((time.time() - self.start_time) / (24 * 60 * 60)),
+            "connected_clients": len(self.connections),
+            "keyspace": list(),
+            "total_connections_received": self.total_connections_received,
+            "total_commands_processed": self.total_commands_processed,
+            "instantaneous_ops_per_sec": self.instantaneous_ops_per_sec,
+            "total_net_input_bytes": self.total_net_input_bytes,
+            "total_net_output_bytes": self.total_net_output_bytes,
+        }
 
     async def serve(self, host='127.0.0.1', port=6379, **kwargs):
         self.host = host

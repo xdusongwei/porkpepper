@@ -1,21 +1,9 @@
 from typing import *
-from jinja2 import Template
 from .result import *
 from .redis_server_base import RedisServerBase
 
 
 class RedisServer(RedisServerBase):
-    INFO_TEMPLATE = Template(
-        """# Server
-redis_version:3.0.0
-porkpepper_version:0.1.0
-porkpepper_mode:{{ porkpepper_mode }}
-tcp_port:{{ port }}
-
-# Keyspace
-{% for db, info in service_list %}db{{ db }}:keys={{ info["keys"] }},expires=0,avg_ttl=0\r\n{% endfor %}
-""", newline_sequence="\r\n")
-
     async def get(self, session, key) -> Result[bytes]:
         return Result(NotImplementedError())
 

@@ -73,8 +73,6 @@ class WebsocketApp(web.Application):
                         await session.request(message_result.unwrap())
                 elif msg.type == aiohttp.WSMsgType.ERROR or msg.type == aiohttp.WSMsgType.CLOSE:
                     break
-        except Exception as e:
-            print(e)
         finally:
             try:
                 await ws.close()

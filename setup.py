@@ -15,6 +15,7 @@ setup(
     install_requires=[
         'Jinja2',
         'base58',
+        'aiotools',
         'aiohttp',
         'typing',
         'pytest',

@@ -57,7 +57,10 @@ class SocketBasedRedisServer(RedisServer):
 
     @classmethod
     async def send_task(cls, session, message):
-        await session.send(message)
+        try:
+            await session.send(message)
+        except Exception as e:
+            pass
 
     async def set(self, session, key, value) -> Result:
         app = self.app
@@ -87,7 +90,9 @@ class SocketBasedRedisServer(RedisServer):
                  keys=self._user_db_size(),
              )
              ))
-        info = self.INFO_TEMPLATE.render(port=self.port, porkpepper_mode="websocket", service_list=service_list)
+        info_arguments = self.info_arguments()
+        info_arguments.update(porkpepper_mode="websocket", keyspace=service_list)
+        info = self.INFO_TEMPLATE.render(info_arguments)
         return Result(info)
 
     async def auth(self, session, password) -> Result[bool]:
@@ -273,7 +278,9 @@ class ServiceBasedRedisServer(RedisServer):
                      keys=len(self.SERVICE_MAP.get(db, dict()).get("map", list())),
                  )
                  ))
-        info = self.INFO_TEMPLATE.render(port=self.port, porkpepper_mode="service", service_list=service_list)
+        info_arguments = self.info_arguments()
+        info_arguments.update(porkpepper_mode="service", keyspace=service_list)
+        info = self.INFO_TEMPLATE.render(info_arguments)
         return Result(info)
 
     async def ttl(self, session, key):

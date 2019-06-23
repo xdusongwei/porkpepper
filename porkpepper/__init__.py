@@ -9,3 +9,4 @@ from .websocket_session import WebsocketSession
 from .websocket_app import WebsocketApp
 from .node import PorkPepperNode
 from .design import SocketBasedRedisServer
+from .monitor_node import SimpleMonitorNode

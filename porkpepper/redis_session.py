@@ -6,6 +6,7 @@ class RedisSession:
         self.reader = None
         self.write = None
         self.need_auth_event = None
+        self.server = None
 
 
 __all__ = ["RedisSession", ]
