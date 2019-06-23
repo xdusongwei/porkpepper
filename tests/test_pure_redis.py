@@ -22,11 +22,15 @@ class ServiceAtOne:
         y = message.get("y", 0)
         return dict(result=x + y)
 
+    @service("times", output=True)
+    async def times(self, a, b, **kwargs):
+        return dict(result=a * b)
+
 
 @pytest.mark.asyncio
 async def test_service():
     node = RedisServiceNode()
-    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne}, redis_host="127.0.0.1", redis_port=6666)
+    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666)
 
     # db 0
     conn = await aioredis.create_redis('redis://127.0.0.1:6666/0')
@@ -61,7 +65,7 @@ async def test_service():
     assert plus_command["description"] is None
     assert plus_command["meta"] == dict(info="test_info")
     dbsize = await conn.dbsize()
-    assert dbsize == 1
+    assert dbsize == 2
     await common_command_check(conn)
     conn.close()
 

@@ -186,7 +186,7 @@ class RedisTaskNode:
         elif command == b'INFO':
             info_result = self.result
             if info_result.is_error:
-                return Result(info_result.error)
+                self.write(writer, mixin.set_err().unwrap(), session)
             binary_result = mixin.set_binary(info_result.unwrap())
             if binary_result.is_error:
                 return Result(binary_result.error)
@@ -275,7 +275,7 @@ class RedisTaskNode:
                 if command == b'SCAN':
                     self.write(writer, mixin.set_count(2).unwrap(), session)
                     self.write(writer, mixin.set_binary(0).unwrap(), session)
-                self.write(mixin.set_count(count).unwrap(), session)
+                self.write(writer, mixin.set_count(count).unwrap(), session)
                 for key in keys:
                     self.write(writer, mixin.set_binary(key).unwrap(), session)
                     await writer.drain()

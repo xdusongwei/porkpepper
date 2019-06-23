@@ -55,38 +55,52 @@ class WebsocketApp(web.Application):
     def add_session(self, session_id, session):
         self._session_dict[session_id] = session
 
+    def setup_session(self, session, ws):
+        session.socket = ws
+        session.app = self
+        self.add_session(session.session_id, session)
+
+    def cleanup_session(self, session):
+        if session.current_user:
+            self.remove_user(session.current_user, session)
+        self.remove_session(session.session_id)
+        session.app = None
+        session.socket = None
+
     async def handler(self, request):
         if not self._session_class:
             return
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         session = self._session_class()
-        session.socket = ws
-        session.app = self
-        self.add_session(session.session_id, session)
-        await session.prepare()
+        self.setup_session(session, ws)
         try:
+            await session.prepare()
             async for msg in ws:
-                if msg.type == aiohttp.WSMsgType.TEXT or msg.type == aiohttp.WSMsgType.BINARY:
+                if msg.type in (aiohttp.WSMsgType.TEXT, msg.type == aiohttp.WSMsgType.BINARY, ):
                     message_result = session.message_loads(msg.data)
                     if message_result.is_some:
                         await session.request(message_result.unwrap())
-                elif msg.type == aiohttp.WSMsgType.ERROR or msg.type == aiohttp.WSMsgType.CLOSE:
+                elif msg.type == aiohttp.WSMsgType.PING:
+                    await ws.pong()
+                elif msg.type in (
+                        aiohttp.WSMsgType.CLOSE,
+                        aiohttp.WSMsgType.CLOSING,
+                        aiohttp.WSMsgType.CLOSED,
+                        aiohttp.WSMsgType.ERROR,):
                     break
+        except Exception as e:
+            pass
         finally:
-            try:
-                await ws.close()
-            except Exception as e:
-                pass
             try:
                 await session.on_finish()
             except Exception as e:
                 pass
-        if session.current_user:
-            self.remove_user(session.current_user, session)
-        self.remove_session(session.session_id)
-        session.app = None
-        session.socket = None
+            try:
+                await ws.close()
+            except Exception as e:
+                pass
+        self.cleanup_session(session)
         return ws
 
 

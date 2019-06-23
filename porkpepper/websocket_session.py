@@ -54,6 +54,10 @@ class WebsocketSession:
                         await self.socket.send_bytes(data)
                     return True
                 except Exception as e:
+                    await self.close()
+                    app = self.app
+                    if app is not None:
+                        app.cleanup_session(self)
                     return False
         return False
 

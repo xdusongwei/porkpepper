@@ -43,7 +43,7 @@ class PorkPepperNode:
             site = web.TCPSite(runner, **kwargs)
             await site.start()
         await self.on_start()
-        redis_server_task = asyncio.Task(redis_server.serve(redis_host, redis_port))
+        redis_server_task = asyncio.create_task(redis_server.serve(redis_host, redis_port))
         asyncio.ensure_future(redis_server_task)
         self._redis_server_task = redis_server_task
         await asyncio.sleep(0.1)
