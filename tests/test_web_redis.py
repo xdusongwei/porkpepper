@@ -1,4 +1,5 @@
 import json
+import asyncio
 import pytest
 import aiohttp
 import aioredis
@@ -78,4 +79,5 @@ async def test_websocket():
     # clean up
     conn_session.close()
     conn_user.close()
+    await asyncio.gather(conn_session.wait_closed(), conn_user.wait_closed())
     await node.stop()

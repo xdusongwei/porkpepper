@@ -1,5 +1,9 @@
 
 
+class UnwrapError(Exception):
+    pass
+
+
 class RedisProtocolFormatError(Exception):
     pass
 
@@ -36,6 +40,7 @@ class CommandNotFound(ExceptionWithReplyError):
 
 
 __all__ = [
+    "UnwrapError",
     "RedisProtocolFormatError",
     "ExceptionWithReplyError",
     "NoPasswordError",

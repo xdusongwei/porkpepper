@@ -6,11 +6,6 @@ from .design import WebsocketNode
 from .redis_server import RedisServer
 
 
-class Session(WebsocketSession):
-    async def on_finish(self):
-        print(self.session_id, "offline")
-
-
 class MonitorRedisServer(RedisServer):
     MAX_DB_COUNT = 0
 

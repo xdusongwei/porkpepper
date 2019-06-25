@@ -32,12 +32,6 @@ class WebsocketApp(web.Application):
     def get_user(self, user: str) -> Set[WebsocketSession]:
         return self._user_dict.get(user, set())
 
-    def __getitem__(self, item) -> WebsocketSession:
-        return self._session_dict.__getitem__(item)
-
-    def __contains__(self, item):
-        return self._session_dict.__contains__(item)
-
     def remove_user(self, user, session):
         if user is not None and user in self._user_dict and session in self._user_dict[user]:
             self._user_dict[user].remove(session)

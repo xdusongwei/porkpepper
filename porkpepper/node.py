@@ -2,6 +2,7 @@ from typing import *
 import asyncio
 from aiohttp import web
 from .websocket_app import WebsocketApp
+from .redis_server_base import RedisServerBase
 
 
 class PorkPepperNode:
@@ -18,7 +19,11 @@ class PorkPepperNode:
         self._redis_server = self._redis_server_class(app=self._http_app)
 
         self._redis_server_task = None
+        self._redis_server_object = None
         self._runner = None
+
+        self.start_event = asyncio.Event()
+        self.stop_event = asyncio.Event()
 
     async def on_start(self):
         pass
@@ -26,15 +31,9 @@ class PorkPepperNode:
     async def on_shutdown(self):
         pass
 
-    async def __aenter__(self):
-        return None
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.stop()
-
     async def start(self, enable_websocket=False, redis_host="127.0.0.1", redis_port=6379, **kwargs):
         app = self._http_app
-        redis_server = self._redis_server
+        redis_server: RedisServerBase = self._redis_server
         redis_server.init_property()
         runner = web.AppRunner(app)
         self._runner = runner
@@ -43,24 +42,28 @@ class PorkPepperNode:
             site = web.TCPSite(runner, **kwargs)
             await site.start()
         await self.on_start()
-        redis_server_task = asyncio.create_task(redis_server.serve(redis_host, redis_port))
-        asyncio.ensure_future(redis_server_task)
-        self._redis_server_task = redis_server_task
-        await asyncio.sleep(0.1)
+        redis_server_object = await redis_server.serve(redis_host, redis_port, False)
+        self._redis_server_object = redis_server_object
         return self
 
     async def stop(self):
-        await self.on_shutdown()
+        if self._redis_server_object:
+            self._redis_server_object.close()
+            await self._redis_server_object.wait_closed()
+            self._redis_server_object = None
         if self._redis_server_task:
             self._redis_server_task.cancel()
             self._redis_server_task = None
         if self._runner:
             await self._runner.cleanup()
             self._runner = None
+        await self.on_shutdown()
 
     async def serve(self, enable_websocket=False, redis_host="127.0.0.1", redis_port=6379, **kwargs):
+        self.start_event.clear()
+        self.stop_event.clear()
         app = self._http_app
-        redis_server = self._redis_server
+        redis_server: RedisServerBase = self._redis_server
         redis_server.init_property()
         runner = web.AppRunner(app)
         await runner.setup()
@@ -69,7 +72,8 @@ class PorkPepperNode:
                 site = web.TCPSite(runner, **kwargs)
                 await site.start()
             await self.on_start()
-            await redis_server.serve(redis_host, redis_port)
+            await redis_server.serve(redis_host, redis_port, True, self.start_event.set)
         finally:
             await runner.cleanup()
             await self.on_shutdown()
+            self.stop_event.set()

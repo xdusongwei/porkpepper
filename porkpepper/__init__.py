@@ -1,7 +1,7 @@
 from .result import Result
 from .error import *
 from .fifo_lock import FifoLock
-from .gate import Gate
+from .gate import Gate, ServerStatus, ServerStatusEnum
 from .redis_protocol import RedisProtocol
 from .redis_server_base import RedisServerBase
 from .redis_server import RedisServer
