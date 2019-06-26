@@ -14,6 +14,9 @@ class ServiceAtZero:
         return dict(result=x+y)
 
 
+CALL_WITHOUT_OUTPUT = False
+
+
 class ServiceAtOne:
     @classmethod
     @service("plus", output=True, meta=dict(info="test_info"))
@@ -25,6 +28,13 @@ class ServiceAtOne:
     @service("times", output=True)
     async def times(self, a, b, **kwargs):
         return dict(result=a * b)
+
+    @service("noOutput")
+    async def without_output(self, x, y=1, **kwargs):
+        global CALL_WITHOUT_OUTPUT
+        assert x == 1
+        assert y == 2
+        CALL_WITHOUT_OUTPUT = True
 
 
 @pytest.mark.asyncio
@@ -57,6 +67,8 @@ async def test_service():
     # db 0
     conn = await aioredis.create_redis('redis://127.0.0.1:6666/0')
     conn_db_0 = conn
+    config = await conn.config_get("databases")
+    assert config["databases"] == "2"
     result = await conn.getset("add", json.dumps(dict(x=1, y=2)))
     result = json.loads(result)
     assert result == dict(result=3)
@@ -76,7 +88,6 @@ async def test_service():
     assert dbsize == 1
     await common_command_check(conn)
     conn.close()
-    await conn.wait_closed()
 
     # db 1
     conn = await aioredis.create_redis('redis://127.0.0.1:6666/1')
@@ -93,11 +104,15 @@ async def test_service():
     assert isinstance(plus_command["output"], bool) and plus_command["output"]
     assert plus_command["description"] is None
     assert plus_command["meta"] == dict(info="test_info")
-    dbsize = await conn.dbsize()
-    assert dbsize == 2
+    await conn.set("noOutput", json.dumps(dict(x=1, y=2)))
+    global CALL_WITHOUT_OUTPUT
+    assert CALL_WITHOUT_OUTPUT
+    db_size = await conn.dbsize()
+    assert db_size == 3
+    keys = await conn.keys("*")
+    assert len(keys) == 3
     await common_command_check(conn)
     conn.close()
-    await conn.wait_closed()
 
     await asyncio.gather(conn_db_0.wait_closed(), conn_db_1.wait_closed())
     await node.stop()

@@ -339,11 +339,15 @@ class ServiceBasedRedisServer(RedisServer):
 
 
 class RedisServiceNode(PorkPepperNode):
-    def __init__(self, **kwargs):
-        super(RedisServiceNode, self).__init__(redis_server=ServiceBasedRedisServer, **kwargs)
-        self._services = dict()
+    def __init__(self, redis_server=ServiceBasedRedisServer, **kwargs):
+        super(RedisServiceNode, self).__init__(redis_server=redis_server, **kwargs)
 
-    async def update_service(self, db: int, new_service: Type):
+    def clear_service(self):
+        if self._redis_server:
+            self._redis_server.MAX_DB_COUNT = 0
+            self._redis_server.SERVICE_MAP.clear()
+
+    def update_service(self, db: int, new_service: Type):
         members = inspect.getmembers(new_service, inspect.ismethod)
         service_map = dict()
         for _, member in members:
@@ -363,18 +367,19 @@ class RedisServiceNode(PorkPepperNode):
             service_map[key] = dict(handler=member, args=service_arguments)
         loads = getattr(new_service, "LOADS", json.loads)
         dumps = getattr(new_service, "DUMPS", json.dumps)
-        self._services[db] = dict(loads=loads, dumps=dumps, map=service_map)
         if self._redis_server:
             if db + 1 > self._redis_server.MAX_DB_COUNT:
                 self._redis_server.MAX_DB_COUNT = db + 1
-            self._redis_server.SERVICE_MAP = self._services
+            self._redis_server.SERVICE_MAP[db] = dict(loads=loads, dumps=dumps, map=service_map)
             
     async def _initialize_service_map(self, service_map: Dict[int, Type] = None):
         if service_map:
             for db, service_type in service_map.items():
                 if not isinstance(db, int):
                     raise ValueError
-                await self.update_service(db, service_type)
+                self.update_service(db, service_type)
+        else:
+            self.clear_service()
 
     async def start(self, service_map: Dict[int, Type] = None, redis_host="127.0.0.1", redis_port=6379, **kwargs):
         await self._initialize_service_map(service_map)
@@ -394,4 +399,4 @@ class RedisServiceNode(PorkPepperNode):
         )
 
 
-__all__ = ["WebsocketNode", "RedisServiceNode", "service", "SocketBasedRedisServer", ]
+__all__ = ["WebsocketNode", "RedisServiceNode", "service", "SocketBasedRedisServer", "ServiceBasedRedisServer", ]

@@ -76,6 +76,10 @@ async def test_websocket():
     assert session_count == 0
     user_count = await conn_user.dbsize()
     assert user_count == 0
+    databases = await conn_session.config_get("databases")
+    assert databases["databases"] == "2"
+    db_size = await conn_session.dbsize()
+    assert db_size == 0
     # clean up
     conn_session.close()
     conn_user.close()

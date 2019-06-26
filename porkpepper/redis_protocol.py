@@ -6,18 +6,6 @@ from .error import *
 class RedisProtocol:
     CR_LF = [13, 10, ]
 
-    def make_command_buffer(self, *args) -> Result[bytes]:
-        if not args:
-            return Result(RedisProtocolFormatError())
-        buffer = bytearray()
-        buffer.extend(self.set_count(len(args)).unwrap())
-        for arg in args:
-            arg_binary_result = self.set_binary(arg)
-            if arg_binary_result.is_error:
-                return arg_binary_result
-            buffer.extend(arg_binary_result.unwrap())
-        return Result(buffer)
-
     @classmethod
     def set_nil(cls):
         buffer = "$-1\r\n".encode("utf8")
@@ -33,9 +21,10 @@ class RedisProtocol:
     def get_integer(cls, line: bytes):
         if isinstance(line, bytes):
             buffer = bytearray(line)
-            if len(buffer) > 1 and buffer.startswith(b":"):
+            if buffer.startswith(b":") and buffer.endswith(b"\r\n"):
+                value_binary = buffer[1:-2]
                 try:
-                    count = int(line[1:])
+                    count = int(value_binary)
                     return Result(count)
                 except Exception as e:
                     return Result(e)
@@ -79,26 +68,24 @@ class RedisProtocol:
     def get_count(cls, line: bytes) -> Result[int]:
         if isinstance(line, bytes):
             buffer = bytearray(line)
-            if len(buffer) > 1 and buffer.startswith(b"*"):
-                try:
-                    count = int(line[1:])
-                    return Result(count)
-                except Exception as e:
-                    return Result(e)
+            if buffer.startswith(b"*") and buffer.endswith(b"\r\n"):
+                value_binary = buffer[1:-2]
+                if value_binary.isdigit():
+                    return Result(int(value_binary))
+                else:
+                    Result(RedisProtocolFormatError())
         return Result(RedisProtocolFormatError())
 
     @classmethod
     def get_binary_size(cls, line: bytes) -> Result[int]:
         if isinstance(line, bytes):
             buffer = bytearray(line)
-            if len(buffer) > 1 and buffer.startswith(b"$"):
-                try:
-                    count = int(line[1:])
-                    if count == -1:
-                        return Result(None)
-                    return Result(count)
-                except Exception as e:
-                    return Result(e)
+            if buffer.startswith(b"$") and buffer.endswith(b"\r\n"):
+                value_binary = buffer[1:-2]
+                if value_binary.isdigit():
+                    return Result(int(value_binary))
+                else:
+                    Result(RedisProtocolFormatError())
         return Result(RedisProtocolFormatError())
 
 
