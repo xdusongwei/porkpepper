@@ -52,7 +52,7 @@ def test_result_exception():
     assert r.error
 
 
-async def test_unwrap():
+def test_unwrap():
     r = porkpepper.Result(0)
     assert r.unwrap() == 0
     r = porkpepper.Result(ValueError())

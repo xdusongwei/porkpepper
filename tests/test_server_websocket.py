@@ -45,6 +45,10 @@ async def test_websocket():
             assert session_count == 1
             user_count = await conn_user.dbsize()
             assert user_count == 0
+            session_keys = await conn_session.keys("*")
+            assert len(session_keys) == 1
+            user_keys = await conn_user.keys("*")
+            assert len(user_keys) == 0
             # session = 1, user = 1
             await ws.send_json(dict(type="login", user="kenny"))
             message = await ws.receive_json(timeout=1)
@@ -53,6 +57,10 @@ async def test_websocket():
             assert session_count == 1
             user_count = await conn_user.dbsize()
             assert user_count == 1
+            session_keys = await conn_session.keys("*")
+            assert len(session_keys) == 1
+            user_keys = await conn_user.keys("*")
+            assert len(user_keys) == 1
             # fetch user kenny
             user = await conn_user.get("kenny")
             user = json.loads(user)
@@ -64,10 +72,17 @@ async def test_websocket():
             assert session_count == 1
             user_count = await conn_user.dbsize()
             assert user_count == 0
+            session_keys = await conn_session.keys("*")
+            assert len(session_keys) == 1
+            user_keys = await conn_user.keys("*")
+            assert len(user_keys) == 0
             # login again
             await ws.send_json(dict(type="login", user="kenny"))
             message = await ws.receive_json(timeout=1)
-
+            session_keys = await conn_session.keys("*")
+            assert len(session_keys) == 1
+            user_keys = await conn_user.keys("*")
+            assert len(user_keys) == 1
             # offline
             await ws.close()
 

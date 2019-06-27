@@ -13,7 +13,9 @@ class RedisProtocol:
 
     @classmethod
     def set_integer(cls, n):
-        if not isinstance(n, int):
+        if isinstance(n, bool):
+            return Result(RedisProtocolFormatError())
+        elif not isinstance(n, int):
             return Result(RedisProtocolFormatError())
         return Result(f":{n}\r\n".encode("utf8"))
 
@@ -44,12 +46,18 @@ class RedisProtocol:
 
     @classmethod
     def set_count(cls, n: int) -> Result[bytes]:
-        if not isinstance(n, int):
+        if isinstance(n, bool):
+            return Result(RedisProtocolFormatError())
+        elif not isinstance(n, int):
+            return Result(RedisProtocolFormatError())
+        if n < 0:
             return Result(RedisProtocolFormatError())
         return Result(f"*{n}\r\n".encode("utf8"))
 
     @classmethod
     def set_binary(cls, b: Union[bytes, str, int]):
+        if isinstance(b, bool):
+            return Result(RedisProtocolFormatError())
         if isinstance(b, str):
             arg_buffer = b.encode("utf8")
         elif isinstance(b, bytes):

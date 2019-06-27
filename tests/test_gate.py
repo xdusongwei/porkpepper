@@ -30,3 +30,5 @@ async def test_gate():
     assert status.state == porkpepper.ServerStatusEnum.NotAvailable
     await status.left()
     assert status.state == porkpepper.ServerStatusEnum.Zero
+    await status.update()
+    assert status.state == porkpepper.ServerStatusEnum.Updating

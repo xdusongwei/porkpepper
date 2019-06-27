@@ -139,7 +139,7 @@ class SocketBasedRedisServer(RedisServer):
             return Result(keys)
         if session.current_db == 1:
             keys = self._scan_users(pattern)
-            return Result(list())
+            return Result(keys)
         return Result(list())
 
     async def dbsize(self, session):
