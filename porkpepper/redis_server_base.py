@@ -152,12 +152,17 @@ cluster_enabled:0
             "total_net_output_bytes": self.total_net_output_bytes,
         }
 
-    async def serve(self, host='127.0.0.1', port=6379, **kwargs):
+    async def serve(self, host='127.0.0.1', port=6379, forever=True, after_start=None, **kwargs):
         self.host = host
         self.port = port
         server = await asyncio.start_server(self.handle_stream, host, port, **kwargs)
-        async with server:
-            await server.serve_forever()
+        if after_start:
+            after_start()
+        if forever:
+            async with server:
+                await server.serve_forever()
+        else:
+            return server
 
     async def get(self, session, key) -> Result[bytes]:
         return Result(NotImplementedError())

@@ -3,6 +3,7 @@ import time
 import json
 import random
 import string
+from aiohttp import WSCloseCode
 from aiohttp.web import WebSocketResponse
 from .result import Result
 from .utils import create_base58_key
@@ -54,13 +55,17 @@ class WebsocketSession:
                         await self.socket.send_bytes(data)
                     return True
                 except Exception as e:
+                    await self.close()
+                    app = self.app
+                    if app is not None:
+                        app.cleanup_session(self)
                     return False
         return False
 
-    async def close(self):
+    async def close(self, message: bytes = b'Server shutdown'):
         if self.socket is not None:
             try:
-                await self.socket.close()
+                await self.socket.close(code=WSCloseCode.GOING_AWAY, message=message)
             except Exception as e:
                 pass
 

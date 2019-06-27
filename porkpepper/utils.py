@@ -6,17 +6,19 @@ import hashlib
 
 
 class HashCipher(object):
-    def __init__(self, salt=None, cipher=hashlib.sha3_256):
-        self._salt = salt
+    def __init__(self, salt=None, cipher=hashlib.blake2b):
+        self._salt: Optional[bytes] = salt or b''
         self._cipher = cipher
 
     def hash(self, text) -> str:
-        binary = (self._salt + text).encode("utf8") if self._salt else text.encode("utf8")
-        return self._cipher(binary).hexdigest()
+        cipher = self._cipher(salt=self._salt)
+        cipher.update(text.encode("utf8"))
+        return cipher.hexdigest()
 
     def digest(self, text) -> bytes:
-        binary = (self._salt + text).encode("utf8") if self._salt else text.encode("utf8")
-        return self._cipher(binary).digest()
+        cipher = self._cipher(salt=self._salt)
+        cipher.update(text.encode("utf8"))
+        return cipher.digest()
 
 
 def create_base58_key(
@@ -24,7 +26,7 @@ def create_base58_key(
         length: int = 16,
         prefix: str = "",
         salt: Optional[str]= None,
-        cipher=hashlib.sha3_256,
+        cipher=hashlib.blake2b,
         timestamp: bool = False,
 ) -> str:
     hash_cipher = HashCipher(salt=salt, cipher=cipher)
@@ -34,7 +36,8 @@ def create_base58_key(
         slice_key = slice_key.decode("utf8")
     time_part = ''
     if timestamp:
-        time_part = base58.b58encode(pack('>Q', int(time.time() * 1000))).zfill(10).decode("utf8")
+        now_timestamp = int(time.time() * 1000)
+        time_part = base58.b58encode(pack('>Q', now_timestamp)).zfill(10).decode("utf8")
     key = f'{prefix}{"{}{}".format(time_part, slice_key)[:length]}'
     return key
 
