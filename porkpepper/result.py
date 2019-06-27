@@ -1,4 +1,5 @@
 from typing import *
+from .error import UnwrapError
 
 
 T = TypeVar('T')
@@ -11,11 +12,23 @@ class Result(Generic[T]):
 
     @property
     def is_ok(self):
-        return not isinstance(self._v, Exception)
+        if self._v is None:
+            return True
+        if isinstance(self._v, type):
+            object_type = self._v
+        else:
+            object_type = type(self._v)
+        return not issubclass(object_type, Exception)
 
     @property
     def is_error(self) -> bool:
-        return isinstance(self._v, Exception)
+        if self._v is None:
+            return False
+        if isinstance(self._v, type):
+            object_type = self._v
+        else:
+            object_type = type(self._v)
+        return issubclass(object_type, Exception)
 
     @property
     def is_none(self) -> bool:
@@ -27,7 +40,7 @@ class Result(Generic[T]):
 
     def unwrap(self) -> T:
         if self.is_error:
-            raise ReferenceError
+            raise UnwrapError
         return self._v
 
     @property

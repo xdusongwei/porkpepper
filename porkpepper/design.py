@@ -14,6 +14,7 @@ PORKPEPPER_ATTR = "__porkpepper__"
 
 class SocketBasedRedisServer(RedisServer):
     MAX_DB_COUNT = 2
+    LOADS = json.loads
 
     def _session_db_size(self) -> int:
         app = self.app
@@ -67,7 +68,7 @@ class SocketBasedRedisServer(RedisServer):
         if session.current_db == 0:
             session = app.get_session(key) if app is not None else None
             if session:
-                asyncio.ensure_future(asyncio.Task(self.send_task(session, json.loads(value))))
+                asyncio.ensure_future(asyncio.Task(self.send_task(session, self.LOADS(value))))
         return Result(True)
 
     async def key_type(self, session, key):
@@ -76,7 +77,7 @@ class SocketBasedRedisServer(RedisServer):
     async def ping(self, session):
         return Result("PONG")
 
-    async def info(self, session):
+    def info_arguments(self):
         service_list = list()
         service_list.append(
             (0,
@@ -90,8 +91,12 @@ class SocketBasedRedisServer(RedisServer):
                  keys=self._user_db_size(),
              )
              ))
+        arguments = super(SocketBasedRedisServer, self).info_arguments()
+        arguments.update(porkpepper_mode="websocket", keyspace=service_list)
+        return arguments
+
+    async def info(self, session):
         info_arguments = self.info_arguments()
-        info_arguments.update(porkpepper_mode="websocket", keyspace=service_list)
         info = self.INFO_TEMPLATE.render(info_arguments)
         return Result(info)
 
@@ -134,7 +139,7 @@ class SocketBasedRedisServer(RedisServer):
             return Result(keys)
         if session.current_db == 1:
             keys = self._scan_users(pattern)
-            return Result(list())
+            return Result(keys)
         return Result(list())
 
     async def dbsize(self, session):
@@ -160,9 +165,9 @@ class SocketBasedRedisServer(RedisServer):
 
 
 class WebsocketNode(PorkPepperNode):
-    def __init__(self, session_class, websocket_path, **kwargs):
+    def __init__(self, session_class, websocket_path, redis_server=SocketBasedRedisServer, **kwargs):
         super(WebsocketNode, self).__init__(
-            redis_server=SocketBasedRedisServer,
+            redis_server=redis_server,
             session_class=session_class,
             websocket_path=websocket_path,
             **kwargs
@@ -186,9 +191,11 @@ class WebsocketNode(PorkPepperNode):
 
 def service(key: str, output: bool = False, description: Optional[str] = None, meta: Optional[Dict] = None):
     def wrap(func):
+        signature = inspect.signature(func)
         setattr(func, PORKPEPPER_ATTR, dict(
             key=key,
             output=output,
+            signature=signature,
             description=description,
             meta=meta if meta else dict()
         ))
@@ -216,6 +223,7 @@ class ServiceBasedRedisServer(RedisServer):
             "type": "api",
             "key": service_arguments["key"],
             "output": service_arguments["output"],
+            "signature": str(service_arguments["signature"]),
             "description": service_arguments["description"],
             "meta": service_arguments["meta"],
         }
@@ -238,8 +246,12 @@ class ServiceBasedRedisServer(RedisServer):
         if not service_arguments.get("output", False):
             return Result(WrongCommand())
         try:
+            signature = service_arguments["signature"]
             message = loads(value)
-            result = await handler(message=message)
+            if "kwargs" in signature.parameters:
+                result = await handler(**message)
+            else:
+                result = await handler(message=message)
             return Result(dumps(result))
         except Exception as e:
             return Result(e)
@@ -255,10 +267,15 @@ class ServiceBasedRedisServer(RedisServer):
         if not service_dict:
             return Result(KeyNotFound())
         handler = service_dict["handler"]
+        service_arguments = service_dict["args"]
         loads = current_service["loads"]
         try:
+            signature = service_arguments["signature"]
             message = loads(value)
-            await handler(message=message)
+            if "kwargs" in signature.parameters:
+                await handler(**message)
+            else:
+                await handler(message=message)
             return Result(True)
         except Exception as e:
             return Result(e)
@@ -269,7 +286,7 @@ class ServiceBasedRedisServer(RedisServer):
     async def ping(self, session):
         return Result("PONG")
 
-    async def info(self, session):
+    def info_arguments(self):
         service_list = list()
         for db in range(self.MAX_DB_COUNT):
             service_list.append(
@@ -278,8 +295,12 @@ class ServiceBasedRedisServer(RedisServer):
                      keys=len(self.SERVICE_MAP.get(db, dict()).get("map", list())),
                  )
                  ))
+        arguments = super(ServiceBasedRedisServer, self).info_arguments()
+        arguments.update(porkpepper_mode="service", keyspace=service_list)
+        return arguments
+
+    async def info(self, session):
         info_arguments = self.info_arguments()
-        info_arguments.update(porkpepper_mode="service", keyspace=service_list)
         info = self.INFO_TEMPLATE.render(info_arguments)
         return Result(info)
 
@@ -318,18 +339,22 @@ class ServiceBasedRedisServer(RedisServer):
 
 
 class RedisServiceNode(PorkPepperNode):
-    def __init__(self, **kwargs):
-        super(RedisServiceNode, self).__init__(redis_server=ServiceBasedRedisServer, **kwargs)
-        self._services = dict()
+    def __init__(self, redis_server=ServiceBasedRedisServer, **kwargs):
+        super(RedisServiceNode, self).__init__(redis_server=redis_server, **kwargs)
 
-    async def update_service(self, db: int, new_service: Type):
+    def clear_service(self):
+        if self._redis_server:
+            self._redis_server.MAX_DB_COUNT = 0
+            self._redis_server.SERVICE_MAP.clear()
+
+    def update_service(self, db: int, new_service: Type):
         members = inspect.getmembers(new_service, inspect.ismethod)
         service_map = dict()
         for _, member in members:
             if not inspect.iscoroutinefunction(member):
                 continue
             sign = inspect.signature(member)
-            if "message" not in sign.parameters:
+            if "message" not in sign.parameters and "kwargs" not in sign.parameters:
                 continue
             if not hasattr(member, PORKPEPPER_ATTR):
                 continue
@@ -342,18 +367,19 @@ class RedisServiceNode(PorkPepperNode):
             service_map[key] = dict(handler=member, args=service_arguments)
         loads = getattr(new_service, "LOADS", json.loads)
         dumps = getattr(new_service, "DUMPS", json.dumps)
-        self._services[db] = dict(loads=loads, dumps=dumps, map=service_map)
         if self._redis_server:
             if db + 1 > self._redis_server.MAX_DB_COUNT:
                 self._redis_server.MAX_DB_COUNT = db + 1
-            self._redis_server.SERVICE_MAP = self._services
+            self._redis_server.SERVICE_MAP[db] = dict(loads=loads, dumps=dumps, map=service_map)
             
     async def _initialize_service_map(self, service_map: Dict[int, Type] = None):
         if service_map:
             for db, service_type in service_map.items():
                 if not isinstance(db, int):
                     raise ValueError
-                await self.update_service(db, service_type)
+                self.update_service(db, service_type)
+        else:
+            self.clear_service()
 
     async def start(self, service_map: Dict[int, Type] = None, redis_host="127.0.0.1", redis_port=6379, **kwargs):
         await self._initialize_service_map(service_map)
@@ -373,4 +399,4 @@ class RedisServiceNode(PorkPepperNode):
         )
 
 
-__all__ = ["WebsocketNode", "RedisServiceNode", "service", "SocketBasedRedisServer", ]
+__all__ = ["WebsocketNode", "RedisServiceNode", "service", "SocketBasedRedisServer", "ServiceBasedRedisServer", ]

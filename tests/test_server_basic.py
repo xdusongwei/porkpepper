@@ -24,10 +24,10 @@ class PrepareAndFinishSession(WebsocketSession):
 
 
 @pytest.mark.asyncio
-async def test_basic_serve():
+async def test_basic_serve_mode():
     node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
     task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
-    await asyncio.sleep(0.01)
+    await asyncio.wait_for(node.start_event.wait(), 0.1)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
             await ws.send_json(dict(type="hello"))
@@ -35,19 +35,20 @@ async def test_basic_serve():
             assert message == {"type": "world"}
             await ws.close()
     task.cancel()
-    await asyncio.sleep(0.1)
+    await asyncio.wait_for(node.stop_event.wait(), 0.1)
     node = PorkPepperNode(SocketBasedRedisServer, PrepareAndFinishSession)
     task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
-    await asyncio.sleep(0.01)
+    await asyncio.wait_for(node.start_event.wait(), 0.1)
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect('http://127.0.0.1:9090/porkpepper') as ws:
             await ws.close()
     assert not PrepareAndFinishSession.CASE
     task.cancel()
+    await asyncio.wait_for(node.stop_event.wait(), 0.1)
 
 
 @pytest.mark.asyncio
-async def test_basic_start():
+async def test_basic_start_mode():
     node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
     await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
     async with aiohttp.ClientSession() as session:
@@ -64,3 +65,25 @@ async def test_basic_start():
             await ws.close()
     assert not PrepareAndFinishSession.CASE
     await node.stop()
+
+
+@pytest.mark.asyncio
+async def test_address_conflict_start_node():
+    node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
+    await node.start(enable_websocket=True, host="127.0.0.1", port=9090)
+    node_2 = PorkPepperNode(SocketBasedRedisServer, HelloSession)
+    with pytest.raises(IOError):
+        await node_2.start(enable_websocket=True, host="127.0.0.1", port=9090)
+    await node.stop()
+
+
+@pytest.mark.asyncio
+async def test_address_conflict_serve_node():
+    node = PorkPepperNode(SocketBasedRedisServer, HelloSession)
+    task = asyncio.Task(node.serve(enable_websocket=True, host="127.0.0.1", port=9090))
+    await asyncio.wait_for(node.start_event.wait(), 0.1)
+    node_2 = PorkPepperNode(SocketBasedRedisServer, HelloSession)
+    with pytest.raises(IOError):
+        await node_2.serve(enable_websocket=True, host="127.0.0.1", port=9090)
+    task.cancel()
+    await asyncio.wait_for(node.stop_event.wait(), 0.1)

@@ -32,6 +32,8 @@ async def three(lock):
 @pytest.mark.asyncio
 async def test_lock():
     lock = FifoLock()
+    await lock.release()
+    lock = FifoLock()
     t_one = asyncio.ensure_future(one(lock))
     t_two = asyncio.ensure_future(two(lock))
     t_three = asyncio.ensure_future(three(lock))
