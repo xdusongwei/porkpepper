@@ -15,6 +15,9 @@ class Session(WebsocketSession):
         global SESSION_ID
         SESSION_ID = self.session_id
 
+    def read_timeout(self):
+        return 0.1
+
     async def request(self, message):
         assert len(self.session_id) == 24
         if message["type"] == "login":
@@ -85,7 +88,11 @@ async def test_websocket():
             assert len(user_keys) == 1
             # offline
             await ws.close()
-
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect('http://127.0.0.1:9090/stream') as ws:
+            await asyncio.sleep(0.2)
+            msg = await ws.receive(1)
+            assert msg.type == aiohttp.WSMsgType.CLOSE
     # session = 0, user = 0
     session_count = await conn_session.dbsize()
     assert session_count == 0
