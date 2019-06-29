@@ -86,6 +86,7 @@ async def test_websocket():
             assert len(session_keys) == 1
             user_keys = await conn_user.keys("*")
             assert len(user_keys) == 1
+            await conn_session.delete(session_keys[0])
             # offline
             await ws.close()
     async with aiohttp.ClientSession() as session:

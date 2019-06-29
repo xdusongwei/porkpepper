@@ -46,6 +46,8 @@ class WebsocketApp(web.Application):
     def remove_session(self, session_id):
         if session_id in self._session_dict:
             self._session_dict.pop(session_id)
+            return True
+        return False
 
     def add_session(self, session_id, session):
         self._session_dict[session_id] = session
