@@ -25,6 +25,10 @@ setup(
         'python-coveralls',
         'pytest-cov',
         'codecov',
+        'sphinx',
+        'recommonmark',
+        'sphinx-prompt',
+
     ],
     tests_require=[
         'pytest',

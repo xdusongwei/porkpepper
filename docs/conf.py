@@ -40,6 +40,7 @@ release = ''
 # ones.
 extensions = [
     'recommonmark',
+    'sphinx-prompt',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
