@@ -207,5 +207,8 @@ cluster_enabled:0
     async def config(self, session, get_set, field, value=None):
         return Result(NotImplementedError())
 
+    async def delete(self, session, key):
+        return Result(NotImplementedError())
+
 
 __all__ = ["RedisServerBase", ]

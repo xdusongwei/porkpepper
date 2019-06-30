@@ -29,3 +29,5 @@ async def test_empty_redis_server():
     assert result.is_error and isinstance(result.error, NotImplementedError)
     result = await server.config(None, None, None)
     assert result.is_error and isinstance(result.error, NotImplementedError)
+    result = await server.delete(None, None)
+    assert result.is_error and isinstance(result.error, NotImplementedError)

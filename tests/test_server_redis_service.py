@@ -40,21 +40,21 @@ class ServiceAtOne:
 @pytest.mark.asyncio
 async def test_address_conflict_start_node():
     node = RedisServiceNode()
-    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666)
+    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6379)
     node_2 = RedisServiceNode()
     with pytest.raises(IOError):
-        await node_2.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666)
+        await node_2.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6379)
     await node.stop()
 
 
 @pytest.mark.asyncio
 async def test_address_conflict_serve_node():
     node = RedisServiceNode()
-    task = asyncio.Task(node.serve(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666))
+    task = asyncio.Task(node.serve(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6379))
     await asyncio.wait_for(node.start_event.wait(), 0.1)
     node_2 = RedisServiceNode()
     with pytest.raises(IOError):
-        await node_2.serve(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666)
+        await node_2.serve(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6379)
     task.cancel()
     await asyncio.wait_for(node.stop_event.wait(), 0.1)
 
@@ -62,10 +62,10 @@ async def test_address_conflict_serve_node():
 @pytest.mark.asyncio
 async def test_service():
     node = RedisServiceNode()
-    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6666)
+    await node.start(service_map={0: ServiceAtZero, 1: ServiceAtOne()}, redis_host="127.0.0.1", redis_port=6379)
 
     # db 0
-    conn = await aioredis.create_redis('redis://127.0.0.1:6666/0')
+    conn = await aioredis.create_redis('redis://127.0.0.1:6379/0')
     conn_db_0 = conn
     config = await conn.config_get("databases")
     assert config["databases"] == "2"
@@ -90,7 +90,7 @@ async def test_service():
     conn.close()
 
     # db 1
-    conn = await aioredis.create_redis('redis://127.0.0.1:6666/1')
+    conn = await aioredis.create_redis('redis://127.0.0.1:6379/1')
     conn_db_1 = conn
     result = await conn.getset("plus", json.dumps(dict(x=5, y=16)))
     result = json.loads(result)
@@ -123,6 +123,6 @@ async def common_command_check(conn: aioredis.Redis):
     info = await conn.info()
     assert "server" in info
     assert info["server"]["porkpepper_mode"] == "service"
-    assert info["server"]["tcp_port"] == "6666"
+    assert info["server"]["tcp_port"] == "6379"
     assert "keyspace" in info
     assert info["keyspace"]["db0"]["keys"] == "1"

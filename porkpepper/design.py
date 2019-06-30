@@ -163,6 +163,16 @@ class SocketBasedRedisServer(RedisServer):
             return Result([b'databases', f'{self.MAX_DB_COUNT}'.encode("utf8")])
         return Result(CommandNotFound())
 
+    async def delete(self, session, key):
+        if session.current_db == 0:
+            app = self.app
+            if app is not None:
+                session = app.get_session(key)
+                if session:
+                    await session.close()
+                return Result(1 if session else 0)
+        return Result(0)
+
 
 class WebsocketNode(PorkPepperNode):
     def __init__(self, session_class, websocket_path, redis_server=SocketBasedRedisServer, **kwargs):

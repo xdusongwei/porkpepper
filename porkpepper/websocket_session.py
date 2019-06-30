@@ -19,6 +19,9 @@ class WebsocketSession:
         self.lock = FifoLock()
         self.app = None
 
+    def read_timeout(self):
+        return None
+
     @property
     def current_user(self):
         return self._current_user

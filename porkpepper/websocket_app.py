@@ -1,4 +1,5 @@
 from typing import *
+import asyncio
 from collections import defaultdict
 import aiohttp
 from aiohttp import web
@@ -45,6 +46,8 @@ class WebsocketApp(web.Application):
     def remove_session(self, session_id):
         if session_id in self._session_dict:
             self._session_dict.pop(session_id)
+            return True
+        return False
 
     def add_session(self, session_id, session):
         self._session_dict[session_id] = session
@@ -70,7 +73,9 @@ class WebsocketApp(web.Application):
         self.setup_session(session, ws)
         try:
             await session.prepare()
-            async for msg in ws:
+            while True:
+                read_timeout = session.read_timeout()
+                msg = await ws.receive(read_timeout)
                 if msg.type in (aiohttp.WSMsgType.TEXT, msg.type == aiohttp.WSMsgType.BINARY, ):
                     message_result = session.message_loads(msg.data)
                     if message_result.is_some:
