@@ -72,5 +72,9 @@ class ServerStatus:
         self._state = ServerStatusEnum.Updating
         await self.gate.close_until_complete()
 
+    @property
+    def state(self):
+        return self._state
+
 
 __all__ = ["Gate", "ServerStatusEnum", "ServerStatus", ]

@@ -1,5 +1,9 @@
 
 
+class UnwrapError(Exception):
+    pass
+
+
 class RedisProtocolFormatError(Exception):
     pass
 
@@ -14,7 +18,7 @@ class NoPasswordError(ExceptionWithReplyError):
     pass
 
 
-class ReducerTypeNotFound(Exception):
+class WrongCommand(Exception):
     pass
 
 
@@ -23,10 +27,6 @@ class KeyNotFound(Exception):
 
 
 class NodeNotFound(Exception):
-    pass
-
-
-class ReducerNotFound(Exception):
     pass
 
 
@@ -40,13 +40,13 @@ class CommandNotFound(ExceptionWithReplyError):
 
 
 __all__ = [
+    "UnwrapError",
     "RedisProtocolFormatError",
     "ExceptionWithReplyError",
     "NoPasswordError",
-    "ReducerTypeNotFound",
+    "WrongCommand",
     "KeyNotFound",
     "NodeNotFound",
-    "ReducerNotFound",
     "DatabaseNotFound",
     "CommandNotFound",
 ]
