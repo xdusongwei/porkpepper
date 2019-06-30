@@ -144,6 +144,13 @@ class RedisTaskNode:
             fa = (mixin.scan, dict(session=session, pattern=pattern))
             node = RedisTaskNode(command, fa)
             return Result(node)
+        elif command == b"DEL":
+            if len(commands) != 2:
+                return Result(RedisProtocolFormatError())
+            key = commands[1].decode("utf8").strip()
+            fa = (mixin.delete, dict(session=session, key=key))
+            node = RedisTaskNode(command, fa)
+            return Result(node)
         else:
             node = RedisTaskNode(b'NOOP', None)
             node.result = Result(CommandNotFound())
@@ -279,6 +286,14 @@ class RedisTaskNode:
                 for key in keys:
                     self.write(writer, mixin.set_binary(key).unwrap(), session)
                     await writer.drain()
+        elif command == b"DEL":
+            delete_result = self.result
+            if delete_result.is_error:
+                return Result(delete_result.error)
+            binary_result = mixin.set_integer(delete_result.unwrap())
+            if binary_result.is_error:
+                return Result(binary_result.error)
+            self.write(writer, binary_result.unwrap(), session)
         else:
             binary_result = mixin.set_err("COMMAND NOT EXISTS")
             self.write(writer, binary_result.unwrap(), session)
