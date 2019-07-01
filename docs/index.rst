@@ -1,5 +1,4 @@
-.. porkpepper documentation master file, created by
-   sphinx-quickstart on Wed Jun 19 15:29:50 2019.
+.. porkpepper documentation master file.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -14,6 +13,8 @@ Welcome to porkpepper's documentation!
 .. toctree::
    introduction
    install
+   quickstart
+   guide/index
 
 Indices and tables
 ==================
