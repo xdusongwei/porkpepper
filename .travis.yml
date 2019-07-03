@@ -3,7 +3,7 @@ dist: xenial
 python:
   - "3.7"
 install:
-  - pip install .
+  - pip install .[test]
 before_script:
     - sudo redis-server /etc/redis/redis.conf --port 26379
 # command to run tests

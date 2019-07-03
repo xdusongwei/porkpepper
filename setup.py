@@ -1,5 +1,17 @@
 from setuptools import setup, find_packages
 
+test_deps = [
+    'pytest',
+    'pytest-asyncio',
+    'python-coveralls',
+    'pytest-cov',
+    'codecov',
+]
+
+extras = {
+    'test': test_deps,
+}
+
 setup(
     name='porkpepper',
     version='0.2.0',
@@ -12,6 +24,7 @@ setup(
     classifiers=[
         'Programming Language :: Python :: 3',
     ],
+    python_requires='>=3.7.0',
     install_requires=[
         'Jinja2',
         'base58',
@@ -20,17 +33,7 @@ setup(
         'typing',
         'pytest',
         'aioredis',
-        'pytest',
-        'pytest-asyncio',
-        'python-coveralls',
-        'pytest-cov',
-        'codecov',
-        'sphinx',
-        'recommonmark',
-        'sphinx-prompt',
-
     ],
-    tests_require=[
-        'pytest',
-    ],
+    tests_require=test_deps,
+    extras_require=extras,
 )
