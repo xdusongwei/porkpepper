@@ -14,7 +14,7 @@ extras = {
 
 setup(
     name='porkpepper',
-    version='0.2.0',
+    version='0.2.1',
     author='宋伟(songwei)',
     author_email='songwei@songwei.io',
     long_description='',
