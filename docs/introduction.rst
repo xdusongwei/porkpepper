@@ -1,3 +1,7 @@
-Introduction
+介绍
 ======================================
 
+porkpepper 是一个基于 Redis 通信协议的框架，帮助你通过 Redis 命令作为服务接口
+去执行代码功能。
+
+目前 porkpepper 需要运行在 Python3.7 版本以上。

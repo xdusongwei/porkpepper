@@ -169,7 +169,17 @@ class SocketBasedRedisServer(RedisServer):
             if app is not None:
                 session = app.get_session(key)
                 if session:
-                    await session.close()
+                    try:
+                        await session.close()
+                    except Exception as e:
+                        pass
+                return Result(1 if session else 0)
+        elif session.current_db == 1:
+            app = self.app
+            if app is not None:
+                sessions = app.get_user(key)
+                if sessions:
+                    await asyncio.gather(*[session.close() for session in sessions])
                 return Result(1 if session else 0)
         return Result(0)
 
