@@ -7,7 +7,7 @@ from aiohttp import WSCloseCode
 from aiohttp.web import WebSocketResponse
 from .result import Result
 from .utils import create_base58_key
-from .fifo_lock import FifoLock
+from porkpepper.concurrent import FifoLock
 
 
 class WebsocketSession:
